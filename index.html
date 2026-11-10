@@ -1844,7 +1844,7 @@ select:focus-visible {
       <div class="brand">
         <div class="brand-mark brand-avatar" aria-hidden="true"><img src="brand-avatar.png" alt="大肥鱼"></div>
         <div class="brand-copy">
-          <h1>旋律抄谱机<span class="fatty-badge">大肥鱼</span><span class="version-badge">v1.5.1</span></h1>
+          <h1>旋律抄谱机<span class="fatty-badge">大肥鱼</span><span class="version-badge">v1.5.2</span></h1>
           <p>大肥鱼 · MELODY SCRIBE · 音频自动抄谱</p>
         </div>
       </div>
@@ -2028,6 +2028,14 @@ select:focus-visible {
 
           <section class="side-section settings">
             <h2>识别设置</h2>
+            <label class="field">
+              <span>识别引擎</span>
+              <select id="engineSelect">
+                <option value="offline" selected>离线 · BasicPitch</option>
+                <option value="online">在线 · SheetSage2 高精度</option>
+              </select>
+            </label>
+            <p class="side-note" id="engineHint">离线模式完全本地运行；在线模式会调用本机 SheetSage2 服务，精度更高但需要先安装 SheetSage2。</p>
             <label class="field">
               <span>识别模式</span>
               <select id="modeSelect">
@@ -9790,6 +9798,8 @@ return a / b;`,k5=`
     dottedBtn: $('#dottedBtn'),
     bpmInput: $('#bpmInput'),
     modeSelect: $('#modeSelect'),
+    engineSelect: $('#engineSelect'),
+    engineHint: $('#engineHint'),
     meterSelect: $('#meterSelect'),
     gridSelect: $('#gridSelect'),
     quantizeInput: $('#quantizeInput'),
@@ -9846,6 +9856,7 @@ return a / b;`,k5=`
     reverb: 16,
     tuning: 20,
     recognitionMode: 'poly',
+    recognitionEngine: 'offline',
     origin: 0,
     beatDur: 0.5,
     barDur: 2,
@@ -10037,6 +10048,7 @@ return a / b;`,k5=`
       });
     });
     els.modeSelect.addEventListener('change', onModeChange);
+    els.engineSelect.addEventListener('change', onEngineChange);
     els.meterSelect.addEventListener('change', onMeterChange);
     els.gridSelect.addEventListener('change', onGridChange);
     els.quantizeInput.addEventListener('change', onQuantizeChange);
@@ -10862,6 +10874,11 @@ return a / b;`,k5=`
       return;
     }
     if (state.playing) stopPlayback(false);
+
+    if (state.recognitionEngine === 'online') {
+      await runSheetSage();
+      return;
+    }
 
     if (state.recognitionMode === 'poly') {
       await analyzePolyphonic();
@@ -12963,6 +12980,7 @@ return a / b;`,k5=`
   function syncControls() {
     if (document.activeElement !== els.bpmInput) els.bpmInput.value = formatBpm(state.bpm);
     els.modeSelect.value = state.recognitionMode;
+    if (els.engineSelect) els.engineSelect.value = state.recognitionEngine;
     els.meterSelect.value = state.beatsPerBar + '/' + state.beatUnit;
     els.gridSelect.value = String(state.divisions);
     els.quantizeInput.checked = state.quantize;
@@ -13102,6 +13120,16 @@ return a / b;`,k5=`
   /* ====================================================================== */
   /* 设置变更                                                               */
   /* ====================================================================== */
+
+  function onEngineChange() {
+    state.recognitionEngine = els.engineSelect.value === 'online' ? 'online' : 'offline';
+    if (els.engineHint) {
+      els.engineHint.textContent = state.recognitionEngine === 'online'
+        ? '在线模式调用本机 SheetSage2，精度更高；首次使用会要求选择 SheetSage2 文件夹。'
+        : '离线模式完全本地运行，使用内置 BasicPitch，不需要联网。';
+    }
+    updateControls();
+  }
 
   function onModeChange() {
     state.recognitionMode = els.modeSelect.value === 'poly' ? 'poly' : 'mono';
@@ -14312,6 +14340,7 @@ return a / b;`,k5=`
 </script>
 </body>
 </html>
+
 
 
 

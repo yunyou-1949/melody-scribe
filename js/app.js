@@ -152,6 +152,8 @@
     dottedBtn: $('#dottedBtn'),
     bpmInput: $('#bpmInput'),
     modeSelect: $('#modeSelect'),
+    engineSelect: $('#engineSelect'),
+    engineHint: $('#engineHint'),
     meterSelect: $('#meterSelect'),
     gridSelect: $('#gridSelect'),
     quantizeInput: $('#quantizeInput'),
@@ -208,6 +210,7 @@
     reverb: 16,
     tuning: 20,
     recognitionMode: 'poly',
+    recognitionEngine: 'offline',
     origin: 0,
     beatDur: 0.5,
     barDur: 2,
@@ -399,6 +402,7 @@
       });
     });
     els.modeSelect.addEventListener('change', onModeChange);
+    els.engineSelect.addEventListener('change', onEngineChange);
     els.meterSelect.addEventListener('change', onMeterChange);
     els.gridSelect.addEventListener('change', onGridChange);
     els.quantizeInput.addEventListener('change', onQuantizeChange);
@@ -1224,6 +1228,11 @@
       return;
     }
     if (state.playing) stopPlayback(false);
+
+    if (state.recognitionEngine === 'online') {
+      await runSheetSage();
+      return;
+    }
 
     if (state.recognitionMode === 'poly') {
       await analyzePolyphonic();
@@ -3325,6 +3334,7 @@
   function syncControls() {
     if (document.activeElement !== els.bpmInput) els.bpmInput.value = formatBpm(state.bpm);
     els.modeSelect.value = state.recognitionMode;
+    if (els.engineSelect) els.engineSelect.value = state.recognitionEngine;
     els.meterSelect.value = state.beatsPerBar + '/' + state.beatUnit;
     els.gridSelect.value = String(state.divisions);
     els.quantizeInput.checked = state.quantize;
@@ -3464,6 +3474,16 @@
   /* ====================================================================== */
   /* 设置变更                                                               */
   /* ====================================================================== */
+
+  function onEngineChange() {
+    state.recognitionEngine = els.engineSelect.value === 'online' ? 'online' : 'offline';
+    if (els.engineHint) {
+      els.engineHint.textContent = state.recognitionEngine === 'online'
+        ? '在线模式调用本机 SheetSage2，精度更高；首次使用会要求选择 SheetSage2 文件夹。'
+        : '离线模式完全本地运行，使用内置 BasicPitch，不需要联网。';
+    }
+    updateControls();
+  }
 
   function onModeChange() {
     state.recognitionMode = els.modeSelect.value === 'poly' ? 'poly' : 'mono';

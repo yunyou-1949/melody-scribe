@@ -17,6 +17,7 @@
 
 - 单音旋律识别：适合人声、笛子、提琴等单声部素材
 - 复音识别：基于 [Basic Pitch](https://github.com/spotify/basic-pitch-ts)，可识别和弦、伴奏与低音
+- 识别引擎可切换：**离线 BasicPitch** / **在线 SheetSage2 高精度**
 - 音符级分轨：鼓组 / 贝斯 / 和声 / 主旋律，可分轨静音、分轨导出 MIDI
 - NCM 解密：支持网易云音乐 `.ncm` 本地转 MP3 / FLAC
 - 本地离线：音频不上传服务器
@@ -95,6 +96,15 @@
 - Microsoft Edge WebView2 Runtime（Win10/11 通常已自带）
 
 > 如果 SmartScreen 提示，选择「更多信息 → 仍要运行」。
+
+### 选择离线或在线识别
+
+侧栏「识别设置」→ **识别引擎**：
+
+- **离线 · BasicPitch**：完全本地，无网络，安装包内置；适合快速草稿
+- **在线 · SheetSage2 高精度**：调用本机 SheetSage2 服务；精度更高，需要先安装 SheetSage2
+
+选好后直接点顶部「开始识别」即可；程序会按当前引擎自动选择路径。
 
 ## 从源码运行
 
