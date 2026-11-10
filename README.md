@@ -1,5 +1,8 @@
 # 旋律抄谱机 · Melody Scribe
 
+[![GitHub](https://img.shields.io/badge/GitHub-yunyou--1949%2Fmelody--scribe-181717?logo=github)](https://github.com/yunyou-1949/melody-scribe)
+[![Release](https://img.shields.io/github/v/release/yunyou-1949/melody-scribe)](https://github.com/yunyou-1949/melody-scribe/releases/latest)
+
 把音频转成可编辑的钢琴卷帘谱，并导出 MIDI / WAV / JSON。
 
 - 单音旋律识别：适合人声、笛子、提琴等单声部素材
@@ -58,7 +61,7 @@
 
 ## 下载与安装
 
-到 GitHub Releases 下载最新 `旋律抄谱机-vX.Y.Z-分享安装包.zip`，解压后双击 `安装.vbs`。
+到 [GitHub Releases](https://github.com/yunyou-1949/melody-scribe/releases/latest) 下载最新 `旋律抄谱机-vX.Y.Z-分享安装包.zip`，解压后双击 `安装.vbs`。
 
 安装脚本会：
 
