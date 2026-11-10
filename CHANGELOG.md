@@ -1,4 +1,8 @@
 ﻿# 更新记录
+## v1.4.5
+- 明确完全免费、禁止商业用途；原创代码改为 PolyForm Noncommercial 1.0.0
+- 侧栏与使用声明标注 Basic Pitch / TensorFlow.js / WebView2 / SheetSage2 / MERT 等第三方成果
+
 ## v1.4.4
 - 复音试听改为轻量单振荡器声部，减少大量音符播放时的节点创建和卡顿/吱吱声
 - 支持导入 .mid / .midi：可把 SheetSage2 等外部扒谱结果放进本软件继续编辑、试听和导出

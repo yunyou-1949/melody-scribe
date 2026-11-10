@@ -2,6 +2,12 @@
 
 [![GitHub](https://img.shields.io/badge/GitHub-yunyou--1949%2Fmelody--scribe-181717?logo=github)](https://github.com/yunyou-1949/melody-scribe)
 [![Release](https://img.shields.io/github/v/release/yunyou-1949/melody-scribe)](https://github.com/yunyou-1949/melody-scribe/releases/latest)
+[![License: PolyForm NC](https://img.shields.io/badge/license-PolyForm%20Noncommercial-orange)](LICENSE)
+
+> **完全免费 · 请勿用于商业用途**
+>
+> 原创代码采用 [PolyForm Noncommercial 1.0.0](LICENSE)，源码公开，但不是 OSI 定义的开源许可。
+> Basic Pitch、TensorFlow.js、WebView2、SheetSage2 / MERT 等成果归原作者，详见 [USAGE.md](USAGE.md) 与 [NOTICE.md](NOTICE.md)。
 
 把音频转成可编辑的钢琴卷帘谱，并导出 MIDI / WAV / JSON。
 
@@ -144,6 +150,8 @@ powershell -ExecutionPolicy Bypass -File shell/build.ps1
 ├─ docs/
 │  └─ score-comparison.png
 ├─ LICENSE
+├─ USAGE.md                  # 使用声明与第三方署名
+├─ 使用声明.txt
 └─ NOTICE.md
 ```
 
@@ -185,6 +193,13 @@ NCM 解密功能只建议用于**你已获得合法使用权**的文件。
 
 ## 许可证
 
-本项目原创代码使用 [MIT License](LICENSE)。
+本项目原创代码使用 [PolyForm Noncommercial License 1.0.0](LICENSE)：
 
-`js/basicpitch-bundle.js` 包含的 Basic Pitch 与 TensorFlow.js 使用 Apache License 2.0；WebView2 属于 Microsoft。详见 [NOTICE.md](NOTICE.md)。
+- **完全免费**
+- 仅限个人学习、研究、测试、兴趣项目等非商业用途
+- 不得销售、不得作为付费服务或商业产品的一部分
+- 商业授权请先联系作者
+
+这不是 OSI 定义的开源许可证，而是**源码公开、非商业使用**。
+
+`js/basicpitch-bundle.js` 包含的 Basic Pitch 与 TensorFlow.js 使用 Apache License 2.0；WebView2 属于 Microsoft；SheetSage2 / MERT 属于其原作者，本项目不包含其代码和模型。详见 [USAGE.md](USAGE.md) 和 [NOTICE.md](NOTICE.md)。

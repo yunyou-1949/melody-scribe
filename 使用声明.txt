@@ -1,0 +1,24 @@
+旋律抄谱机 · 使用声明
+
+1. 完全免费
+本项目没有付费版、激活码或内购，完全免费使用。
+
+2. 禁止商业用途
+原创代码使用 PolyForm Noncommercial License 1.0.0，仅限个人学习、研究、
+测试和兴趣项目。不得销售、不得作为付费服务或商业产品的一部分。
+如误用于商业用途，请立即停止并删除相关分发。
+商业授权请先联系作者。
+
+3. 其他人的成果
+- Basic Pitch：Spotify AB，Apache License 2.0
+- TensorFlow.js：Google LLC，Apache License 2.0
+- Microsoft Edge WebView2：Microsoft Corporation
+- SheetSage2 / MERT-v2：m-a-p，权重 CC BY-NC 4.0；本项目不包含其代码和模型
+- NCM 格式参考 ncmdump / ncm2mp3 / pyNCMDUMP 的公开实现
+以上成果版权归各自作者，详见 USAGE.md 与 NOTICE.md。
+
+4. 音频版权
+请只处理你拥有合法使用权的音频。本项目不提供音乐下载，不附带商业音乐。
+
+作者：（小马利亚）Maneightout / 游云
+反馈 QQ：2171227679
