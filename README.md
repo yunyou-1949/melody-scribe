@@ -71,7 +71,16 @@
 
 ## 下载与安装
 
-到 [GitHub Releases](https://github.com/yunyou-1949/melody-scribe/releases/latest) 下载最新 `MelodyScribe-vX.Y.Z-Setup.zip`，解压后双击 `安装.vbs`。
+目前有两个版本：
+
+| 版本 | 体积 | 说明 |
+|---|---:|---|
+| **轻量联网版** | **5.1 MiB** | 安装包小；内置 Basic Pitch 可离线识别；高精度一键调用本机已有的 SheetSage2，不重复下载 6 GB 模型 |
+| **离线完整版** | 解压后 **6.0 GiB** | 内置 SheetSage2 + MERT + Python 运行时；完全离线；只建议个人使用，不要公开二次分发 |
+
+轻量版到 [GitHub Releases](https://github.com/yunyou-1949/melody-scribe/releases/latest) 下载 `MelodyScribe-vX.Y.Z-Setup.zip`，解压后双击 `安装.vbs`。
+
+离线完整版体积超过 GitHub Release 单文件限制，且包含只允许个人使用的第三方模型，不放在公开 Release。
 
 安装脚本会：
 
