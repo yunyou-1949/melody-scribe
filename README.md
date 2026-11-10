@@ -61,7 +61,7 @@
 
 ## 下载与安装
 
-到 [GitHub Releases](https://github.com/yunyou-1949/melody-scribe/releases/latest) 下载最新 `旋律抄谱机-vX.Y.Z-分享安装包.zip`，解压后双击 `安装.vbs`。
+到 [GitHub Releases](https://github.com/yunyou-1949/melody-scribe/releases/latest) 下载最新 `MelodyScribe-vX.Y.Z-Setup.zip`，解压后双击 `安装.vbs`。
 
 安装脚本会：
 
