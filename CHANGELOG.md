@@ -1,4 +1,9 @@
 ﻿# 更新记录
+## v1.4.6
+- 纠正许可：原创代码恢复 MIT 开源；第三方成果单独标注并保留各自许可证
+- SheetSage2 / MERT 权重仅限非商业，本项目不包含其代码和模型
+- 侧栏、USAGE.md、使用声明.txt 同步更新
+
 ## v1.4.5
 - 明确完全免费、禁止商业用途；原创代码改为 PolyForm Noncommercial 1.0.0
 - 侧栏与使用声明标注 Basic Pitch / TensorFlow.js / WebView2 / SheetSage2 / MERT 等第三方成果

@@ -28,6 +28,24 @@
 
 仓库不提交 `Microsoft.Web.WebView2.*.dll` 与 `WebView2Loader.dll`，构建时请自行从 NuGet 获取。
 
+## SheetSage2 / MERT-v2（外部工具，不随本项目分发）
+
+- SheetSage2: https://huggingface.co/m-a-p/SheetSage2
+- MERT-v2-FullSong: https://huggingface.co/m-a-p/MERT-v2-FullSong
+- 权重许可证：CC BY-NC 4.0（仅限非商业）
+- 本项目只支持导入其导出的 MIDI，不包含其代码或模型权重
+- 使用时应标明 MERT2、模型名与来源仓库
+
+## NCM 格式参考
+
+NCM 容器与解密流程参考以下公开实现：
+
+- https://github.com/taurusxin/ncmdump
+- https://github.com/Johnserf-Seed/ncm2mp3
+- https://github.com/allenfrostline/pyNCMDUMP
+
+仅建议转换你已获得合法使用权的文件。
+
 ## 音频与测试素材
 
 仓库不包含任何商业音乐、NCM 文件或用户音频。
