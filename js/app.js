@@ -194,6 +194,11 @@
     modeOfflineBtn: $('#modeOfflineBtn'),
     modeOnlineBtn: $('#modeOnlineBtn'),
     modeCancelBtn: $('#modeCancelBtn'),
+    engineGuide: $('#engineGuide'),
+    engineExistingBtn: $('#engineExistingBtn'),
+    engineDownloadBtn: $('#engineDownloadBtn'),
+    engineOfflineBtn: $('#engineOfflineBtn'),
+    engineGuideCancelBtn: $('#engineGuideCancelBtn'),
     recordPill: $('#recordPill'),
     recordTime: $('#recordTime'),
     recordStopBtn: $('#recordStopBtn'),
@@ -399,6 +404,22 @@
     els.modeOfflineBtn.addEventListener('click', () => chooseRecognitionMode('offline'));
     els.modeOnlineBtn.addEventListener('click', () => chooseRecognitionMode('online'));
     els.modeCancelBtn.addEventListener('click', hideModePrompt);
+    els.engineExistingBtn.addEventListener('click', () => {
+      hideEngineGuide();
+      runSheetSage(true);
+    });
+    els.engineDownloadBtn.addEventListener('click', () => {
+      if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.postMessage('openSheetSageRelease');
+      } else {
+        window.open('https://github.com/3253473591/sheetsage2-webui/releases/tag/v2.0-beta2', '_blank');
+      }
+    });
+    els.engineOfflineBtn.addEventListener('click', () => {
+      hideEngineGuide();
+      chooseRecognitionMode('offline');
+    });
+    els.engineGuideCancelBtn.addEventListener('click', hideEngineGuide);
     els.instrumentTopBtn.addEventListener('click', recognizeInstruments);
 
     els.bpmInput.addEventListener('change', onBpmChange);
@@ -823,47 +844,69 @@
   }
 
   const SHEETSAGE_API = 'http://127.0.0.1:8777';
+  const SHEETSAGE_V2_API = 'http://127.0.0.1:8000';
   let sheetsageRunning = false;
 
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  async function detectSheetSageApi() {
+    try {
+      const v2 = await fetch(SHEETSAGE_V2_API + '/api/healthz', { cache: 'no-store' });
+      if (v2.ok) return 'v2';
+    } catch (e) { /* try v1 */ }
+    try {
+      const v1 = await fetch(SHEETSAGE_API + '/api/health', { cache: 'no-store' });
+      if (v1.ok) return 'v1';
+    } catch (e) { /* none */ }
+    return null;
+  }
+
   async function sheetSageFetch(path, options, timeoutMs) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs || 3000);
     try {
-      const response = await fetch(SHEETSAGE_API + path, {
+      return await fetch(SHEETSAGE_API + path, {
         ...(options || {}),
         signal: controller.signal,
         cache: 'no-store',
       });
-      return response;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function sheetSageV2Fetch(path, options, timeoutMs) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs || 3000);
+    try {
+      return await fetch(SHEETSAGE_V2_API + path, {
+        ...(options || {}),
+        signal: controller.signal,
+        cache: 'no-store',
+      });
     } finally {
       clearTimeout(timer);
     }
   }
 
   async function ensureSheetSage() {
-    try {
-      const health = await sheetSageFetch('/api/health', {}, 1800);
-      if (health.ok) return;
-    } catch (e) { /* not running */ }
+    const existing = await detectSheetSageApi();
+    if (existing) return existing;
     if (!window.chrome || !window.chrome.webview) {
       throw new Error('请使用 Windows 独立窗口版；浏览器版无法启动本地 SheetSage2');
     }
     window.chrome.webview.postMessage('startSheetSage');
     for (let i = 0; i < 90; i++) {
       await sleep(1000);
-      try {
-        const health = await sheetSageFetch('/api/health', {}, 1500);
-        if (health.ok) return;
-      } catch (e) { /* keep waiting */ }
+      const api = await detectSheetSageApi();
+      if (api) return api;
       if (i % 5 === 0) {
         setOverlayLoading('等待 SheetSage2 服务启动 · ' + (i + 1) + 's');
       }
     }
-    throw new Error('SheetSage2 没有启动成功。请确认已安装 WebUI，且 8777 端口没有被旧的 SheetSage2 占用');
+    throw new Error('SheetSage2 没有启动成功。请确认已安装 WebUI，且 8777 / 8000 端口没有被旧的 SheetSage2 占用');
   }
 
   async function audioForSheetSage() {
@@ -920,10 +963,84 @@
     return notes.length;
   }
 
-  async function runSheetSage() {
+  function applyMidiToCurrent(midi) {
+    const stamp = Date.now().toString(36);
+    state.notes = midi.notes.map((n, i) => ({ ...n, id: 'v2m' + stamp + '_' + i }));
+    state.rawNotes = state.notes.map((n) => ({ ...n }));
+    state.bpm = normaliseBpm(midi.bpm || state.bpm);
+    state.origin = 0;
+    state.audioDuration = Math.max(state.audioDuration || 0, midi.duration || 0);
+    updateTiming();
+    state.measures = Math.max(4, Math.ceil(state.audioDuration / state.barDur));
+    extendMeasuresToFit();
+    fitPitchRange(state.notes);
+    state.instrumentTracks = [];
+    state.mutedParts.clear();
+    state.selected.clear();
+    state.analysis = { mode: 'sheetsage-v2', bpm: state.bpm, duration: state.audioDuration };
+    state.dirty = false;
+    renderAll();
+    chooseAutoTimbre();
+    return state.notes.length;
+  }
+
+  async function runSheetSageV2() {
+    showOverlay('SheetSage2 V2 高精度识别', '上传音频到本机 V2 服务…');
+    setOverlayLoading('上传音频');
+    const audio = await audioForSheetSage();
+    const form = new FormData();
+    form.append('file', audio.blob, audio.name);
+    const jobRes = await sheetSageV2Fetch('/api/jobs', { method: 'POST', body: form }, 180000);
+    if (!jobRes.ok) throw new Error('V2 建工程失败：HTTP ' + jobRes.status + ' ' + (await jobRes.text()).slice(0, 160));
+    let job = await jobRes.json();
+    const jobId = job.id;
+    if (!jobId) throw new Error('V2 没有返回工程 id');
+
+    const startRes = await sheetSageV2Fetch('/api/jobs/' + encodeURIComponent(jobId) + '/stages/transcribe', {
+      method: 'POST',
+    }, 30000);
+    if (!startRes.ok) throw new Error('V2 启动扒谱失败：HTTP ' + startRes.status + ' ' + (await startRes.text()).slice(0, 160));
+
+    const started = Date.now();
+    let stage = null;
+    for (let i = 0; i < 3600; i++) {
+      const res = await sheetSageV2Fetch('/api/jobs/' + encodeURIComponent(jobId), {}, 10000);
+      if (!res.ok) throw new Error('V2 读取状态失败：HTTP ' + res.status);
+      job = await res.json();
+      stage = job.stages && job.stages.transcribe;
+      const percent = Math.max(0, Math.min(100, Number(stage && stage.progress) * 100 || 0));
+      const elapsed = (Date.now() - started) / 1000;
+      setOverlayProgress(0.03 + percent * 0.009,
+        'SheetSage2 V2 · ' + ((stage && (stage.step || stage.label)) || job.message || '处理中') +
+        ' · ' + Math.round(percent) + '% · 已用 ' + formatDuration(elapsed));
+      els.overlayText.textContent = ((stage && stage.step) || job.message || 'V2 正在扒谱') + ' · ' + Math.round(percent) + '%';
+      if (stage && stage.state === 'done') break;
+      if (stage && (stage.state === 'failed' || stage.state === 'cancelled')) {
+        throw new Error(stage.error || 'V2 扒谱失败');
+      }
+      if (job.state === 'failed' || job.state === 'cancelled') {
+        throw new Error(job.message || 'V2 任务失败');
+      }
+      await sleep(1500);
+    }
+    if (!stage || stage.state !== 'done') throw new Error('V2 扒谱超时');
+
+    setOverlayProgress(0.97, '下载 V2 MIDI…');
+    const midiRes = await sheetSageV2Fetch('/api/jobs/' + encodeURIComponent(jobId) + '/files/transcription.mid', {}, 60000);
+    if (!midiRes.ok) throw new Error('V2 MIDI 下载失败：HTTP ' + midiRes.status);
+    const midi = parseMidiFile(await midiRes.arrayBuffer());
+    return applyMidiToCurrent(midi);
+  }
+
+  async function runSheetSage(force) {
     if (sheetsageRunning) return;
     if (!state.samples) {
       showToast('先打开一段音频，再使用 SheetSage2 高精度识别');
+      return;
+    }
+    const existing = await detectSheetSageApi();
+    if (!existing && !force) {
+      showEngineGuide();
       return;
     }
     sheetsageRunning = true;
@@ -932,7 +1049,13 @@
     setOverlayLoading('启动本地服务');
     await nextPaint();
     try {
-      await ensureSheetSage();
+      const api = existing || await ensureSheetSage();
+      if (api === 'v2') {
+        const count = await runSheetSageV2();
+        hideOverlay();
+        showToast('SheetSage2 V2 高精度完成 · ' + count + ' 音符 · 可继续编辑/导出', 'success');
+        return;
+      }
       showOverlay('SheetSage2 高精度识别', '上传音频到本机服务…');
       setOverlayLoading('上传音频');
       const audio = await audioForSheetSage();
@@ -4799,6 +4922,14 @@
 
   function hideModePrompt() {
     if (els.modePrompt) els.modePrompt.classList.add('hidden');
+  }
+
+  function showEngineGuide() {
+    if (els.engineGuide) els.engineGuide.classList.remove('hidden');
+  }
+
+  function hideEngineGuide() {
+    if (els.engineGuide) els.engineGuide.classList.add('hidden');
   }
 
   function chooseRecognitionMode(engine) {
