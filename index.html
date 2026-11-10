@@ -1844,7 +1844,7 @@ select:focus-visible {
       <div class="brand">
         <div class="brand-mark brand-avatar" aria-hidden="true"><img src="brand-avatar.png" alt="大肥鱼"></div>
         <div class="brand-copy">
-          <h1>旋律抄谱机<span class="fatty-badge">大肥鱼</span><span class="version-badge">v1.4.3</span></h1>
+          <h1>旋律抄谱机<span class="fatty-badge">大肥鱼</span><span class="version-badge">v1.4.4</span></h1>
           <p>大肥鱼 · MELODY SCRIBE · 音频自动抄谱</p>
         </div>
       </div>
@@ -1859,7 +1859,7 @@ select:focus-visible {
       </button>
 
       <div class="top-actions">
-        <input type="file" id="fileInput" accept="audio/*,.json,.wav,.mp3,.m4a,.ogg,.webm,.flac,.ncm" hidden>
+        <input type="file" id="fileInput" accept="audio/*,.json,.wav,.mp3,.m4a,.ogg,.webm,.flac,.ncm,.mid,.midi" hidden>
         <button class="ui-btn" id="recordBtn" type="button" title="用麦克风录制一段旋律">
           <span class="btn-ico rec-ico" aria-hidden="true"></span><span>录音</span>
         </button>
@@ -1988,6 +1988,13 @@ select:focus-visible {
             <button class="side-btn wide" type="button" id="openExportBtn">打开下载文件夹</button>
             <button class="side-btn wide" type="button" id="ncmConvertBtn">NCM 转 MP3 / FLAC</button>
             <input type="file" id="ncmInput" accept=".ncm" hidden>
+          </section>
+
+          <section class="side-section">
+            <h2>高精度工作流</h2>
+            <p class="side-note">内置 BasicPitch 轻量离线；如果你本机有 SheetSage2，用它导出 MIDI 后可在这里继续编辑、试听和导出。</p>
+            <button class="side-btn wide" type="button" id="midiImportBtn">导入 SheetSage2 MIDI</button>
+            <input type="file" id="midiInput" accept=".mid,.midi" hidden>
           </section>
 
           <section class="side-section">
@@ -9798,6 +9805,8 @@ return a / b;`,k5=`
     openExportBtn: $('#openExportBtn'),
     ncmConvertBtn: $('#ncmConvertBtn'),
     ncmInput: $('#ncmInput'),
+    midiImportBtn: $('#midiImportBtn'),
+    midiInput: $('#midiInput'),
     instrumentTracks: $('#instrumentTracks'),
     instrumentHint: $('#instrumentHint'),
     overlay: $('#overlay'),
@@ -9893,6 +9902,10 @@ return a / b;`,k5=`
   let activeNodes = [];
   let originalSource = null;
   let previewSource = null;
+  let playbackSource = null;
+  let playbackBuffer = null;
+  let playbackBufferKey = '';
+  let playbackRendering = false;
   let rafId = 0;
   let toastTimer = 0;
   let resizeTimer = 0;
@@ -9995,6 +10008,12 @@ return a / b;`,k5=`
       const f = els.ncmInput.files && els.ncmInput.files[0];
       els.ncmInput.value = '';
       if (f) convertNcmFile(f);
+    });
+    els.midiImportBtn.addEventListener('click', () => els.midiInput.click());
+    els.midiInput.addEventListener('change', () => {
+      const f = els.midiInput.files && els.midiInput.files[0];
+      els.midiInput.value = '';
+      if (f) handleFile(f);
     });
     els.instrumentTopBtn.addEventListener('click', recognizeInstruments);
 
@@ -10279,10 +10298,179 @@ return a / b;`,k5=`
     return { audio, format };
   }
 
+  function parseMidiFile(arrayBuffer) {
+    const bytes = new Uint8Array(arrayBuffer);
+    let p = 0;
+    const ascii = (n) => {
+      const s = String.fromCharCode.apply(null, bytes.subarray(p, p + n));
+      p += n;
+      return s;
+    };
+    const u16 = () => {
+      const v = (bytes[p] << 8) | bytes[p + 1];
+      p += 2;
+      return v;
+    };
+    const u32 = () => {
+      const v = ((bytes[p] << 24) | (bytes[p + 1] << 16) |
+        (bytes[p + 2] << 8) | bytes[p + 3]) >>> 0;
+      p += 4;
+      return v;
+    };
+    const varLen = () => {
+      let v = 0;
+      for (let i = 0; i < 4; i++) {
+        const b = bytes[p++];
+        v = (v << 7) | (b & 0x7f);
+        if (!(b & 0x80)) break;
+      }
+      return v;
+    };
+    if (ascii(4) !== 'MThd') throw new Error('不是有效的 MIDI 文件');
+    const headerLen = u32();
+    const format = u16();
+    const trackCount = u16();
+    const division = u16();
+    if (division & 0x8000) throw new Error('暂不支持 SMPTE 时间格式的 MIDI');
+    p += Math.max(0, headerLen - 6);
+    const tempos = [{ tick: 0, us: 500000 }];
+    const rawNotes = [];
+    for (let t = 0; t < trackCount && p + 8 <= bytes.length; t++) {
+      if (ascii(4) !== 'MTrk') break;
+      const trackEnd = p + 4 + u32();
+      let tick = 0;
+      let running = 0;
+      const active = new Map();
+      while (p < trackEnd) {
+        tick += varLen();
+        if (p >= trackEnd) break;
+        let status = bytes[p++];
+        if (status < 0x80) {
+          if (!running) break;
+          p--;
+          status = running;
+        } else if (status < 0xf0) {
+          running = status;
+        }
+        const type = status >> 4;
+        const channel = status & 0x0f;
+        if (status === 0xff) {
+          const meta = bytes[p++];
+          const len = varLen();
+          if (meta === 0x51 && len === 3) {
+            const us = (bytes[p] << 16) | (bytes[p + 1] << 8) | bytes[p + 2];
+            if (us > 0) tempos.push({ tick, us });
+          }
+          p += len;
+        } else if (status === 0xf0 || status === 0xf7) {
+          p += varLen();
+        } else if (type === 0x9 || type === 0x8) {
+          const pitch = bytes[p++];
+          const velocity = bytes[p++];
+          const key = channel + ':' + pitch;
+          if (type === 0x9 && velocity > 0) {
+            active.set(key, { tick, pitch, velocity });
+          } else {
+            const hit = active.get(key);
+            if (hit) {
+              rawNotes.push({
+                startTick: hit.tick,
+                endTick: tick,
+                midi: hit.pitch,
+                velocity: hit.velocity,
+              });
+              active.delete(key);
+            }
+          }
+        } else if (type === 0xa || type === 0xb || type === 0xe) {
+          p += 2;
+        } else if (type === 0xc || type === 0xd) {
+          p += 1;
+        } else {
+          break;
+        }
+      }
+      p = trackEnd;
+      for (const hit of active.values()) {
+        rawNotes.push({
+          startTick: hit.tick,
+          endTick: tick,
+          midi: hit.pitch,
+          velocity: hit.velocity,
+        });
+      }
+    }
+    tempos.sort((a, b) => a.tick - b.tick || a.us - b.us);
+    const tickToSec = (target) => {
+      let sec = 0;
+      let lastTick = 0;
+      let us = 500000;
+      for (const ev of tempos) {
+        if (ev.tick >= target) break;
+        sec += ((ev.tick - lastTick) * us) / (division * 1e6);
+        lastTick = ev.tick;
+        us = ev.us;
+      }
+      return sec + ((target - lastTick) * us) / (division * 1e6);
+    };
+    const notes = rawNotes
+      .map((n) => {
+        const start = tickToSec(n.startTick);
+        const end = Math.max(start + 0.04, tickToSec(n.endTick));
+        return {
+          start,
+          end,
+          duration: end - start,
+          midi: n.midi,
+          velocity: Core.clamp(n.velocity, 1, 127),
+          part: n.midi <= 50 ? 'bass' : n.midi >= 72 ? 'melody' : 'harmony',
+        };
+      })
+      .sort((a, b) => a.start - b.start || a.midi - b.midi);
+    if (!notes.length) throw new Error('MIDI 里没有音符');
+    const bpm = 60e6 / tempos[0].us;
+    const duration = notes[notes.length - 1].end;
+    return { notes, bpm, duration, format, trackCount };
+  }
+
   async function handleFile(file) {
     if (!file) return;
     if (/\.json$/i.test(file.name)) {
       await importProject(file);
+      return;
+    }
+    if (/\.(mid|midi)$/i.test(file.name)) {
+      if (state.recording) stopRecording();
+      showOverlay('正在导入 MIDI', file.name);
+      await nextPaint();
+      try {
+        const midi = parseMidiFile(await file.arrayBuffer());
+        const sampleRate = 44100;
+        const duration = Math.max(1, midi.duration + 0.1);
+        const silent = new Float32Array(Math.ceil(duration * sampleRate));
+        setSamples(silent, sampleRate, file.name, duration, null);
+        state.bpm = normaliseBpm(midi.bpm);
+        state.origin = 0;
+        const stamp = Date.now().toString(36);
+        state.notes = midi.notes.map((n, i) => ({
+          ...n,
+          id: 'm' + stamp + '_' + i,
+        }));
+        state.rawNotes = state.notes.map((n) => ({ ...n }));
+        updateTiming();
+        state.measures = Math.max(4, Math.ceil(duration / state.barDur));
+        extendMeasuresToFit();
+        fitPitchRange(state.notes);
+        state.analysis = { mode: 'midi', bpm: state.bpm, duration, noteCount: state.notes.length };
+        state.dirty = false;
+        renderAll();
+        hideOverlay();
+        showToast('MIDI 已导入 · ' + state.notes.length + ' 音符 · ' + formatBpm(state.bpm) + ' BPM（无原音，可编辑/导出）', 'success');
+      } catch (err) {
+        hideOverlay();
+        console.error(err);
+        showToast('MIDI 导入失败：' + err.message, 'error');
+      }
       return;
     }
     if (/\.ncm$/i.test(file.name)) {
@@ -10435,6 +10623,8 @@ return a / b;`,k5=`
     state.sourceName = sourceBlob ? name : '';
     state.audioDuration = duration || samples.length / sampleRate;
     state.audioBuffer = null;
+    playbackBuffer = null;
+    playbackBufferKey = '';
     state.wavePeaks = buildWavePeaks(samples, 2600);
     state.notes = [];
     state.rawNotes = [];
@@ -12580,7 +12770,7 @@ return a / b;`,k5=`
       ? `${formatDuration(state.audioDuration)} · ${formatBpm(state.bpm)} BPM · ${state.notes.length} 音符`
       : state.notes.length
         ? `导入谱面 · ${state.notes.length} 音符 · ${formatBpm(state.bpm)} BPM`
-        : 'WAV / MP3 / FLAC / M4A / OGG / NCM · 单音旋律';
+        : 'WAV / MP3 / FLAC / M4A / OGG / NCM / MIDI · 单音旋律';
     document.title = state.audioName
       ? `${state.audioName} · 旋律抄谱机`
       : '旋律抄谱机 · Melody Scribe';
@@ -12927,7 +13117,79 @@ return a / b;`,k5=`
     return audioCtx;
   }
 
-  function startPlayback(mode, from) {
+  function playbackSignature(notes) {
+    let h = 2166136261;
+    for (const n of notes) {
+      h = Math.imul(h ^ (n.midi | 0), 16777619);
+      h = Math.imul(h ^ Math.round(n.start * 1000), 16777619);
+      h = Math.imul(h ^ Math.round((n.end || n.start + n.duration) * 1000), 16777619);
+      h = Math.imul(h ^ (n.velocity | 0), 16777619);
+    }
+    h = Math.imul(h ^ Math.round(state.brightness || 0), 16777619);
+    h = Math.imul(h ^ Math.round(state.reverb || 0), 16777619);
+    h = Math.imul(h ^ Math.round(state.tuning || 0), 16777619);
+    return [h >>> 0, notes.length, state.timbre, Array.from(state.mutedParts).sort().join(',')].join(':');
+  }
+
+  async function buildPlaybackBuffer(notes) {
+    const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!Ctx) throw new Error('当前浏览器不支持离线音频渲染');
+    const sampleRate = 22050;
+    const duration = Math.min(600, Math.max(0.5, getTimelineEnd()));
+    const length = Math.max(1, Math.ceil(duration * sampleRate));
+    const offline = new Ctx(1, length, sampleRate);
+    const master = offline.createGain();
+    master.gain.value = 0.8;
+    const filter = offline.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 6500;
+    const bright = offline.createBiquadFilter();
+    bright.type = 'highshelf';
+    bright.frequency.value = 3000;
+    bright.gain.value = 3;
+    const lowCut = offline.createBiquadFilter();
+    lowCut.type = 'highpass';
+    lowCut.frequency.value = 50;
+    lowCut.Q.value = 0.7;
+    master.connect(lowCut);
+    lowCut.connect(bright);
+    bright.connect(filter);
+    filter.connect(offline.destination);
+
+    const oldCtx = audioCtx;
+    const oldMaster = masterGain;
+    const activeStart = activeNodes.length;
+    audioCtx = offline;
+    masterGain = master;
+    try {
+      for (const n of notes) {
+        const t = Math.max(0, n.start);
+        if (t >= duration) continue;
+        const d = Math.max(0.06, Math.min(n.duration + 0.08, duration - t));
+        makeVoice(n, t, d, true);
+      }
+    } finally {
+      audioCtx = oldCtx;
+      masterGain = oldMaster;
+      activeNodes.length = activeStart;
+    }
+    const rendered = await offline.startRendering();
+    const data = rendered.getChannelData(0);
+    let peak = 0;
+    for (let i = 0; i < data.length; i++) {
+      const v = Math.abs(data[i]);
+      if (v > peak) peak = v;
+    }
+    if (peak > 1e-6) {
+      const scale = 0.95 / peak;
+      for (let i = 0; i < data.length; i++) data[i] *= scale;
+    }
+    const buffer = audioCtx.createBuffer(1, data.length, sampleRate);
+    buffer.copyToChannel(data, 0);
+    return buffer;
+  }
+
+  async function startPlayback(mode, from) {
     if (mode === 'notes' && !state.notes.length) {
       showToast('还没有可播放的音符');
       return;
@@ -12978,30 +13240,20 @@ return a / b;`,k5=`
         }
       };
     } else {
-      const isPoly = state.notes.length > 200 || (state.analysis && state.analysis.mode === 'poly');
-      if (isPoly) {
-        // 大量音符不能一次性建节点。用 80ms 滚动调度，只提前排 350ms 的音符。
-        playbackNotes = state.notes
-          .filter((n) => !state.mutedParts.has(notePart(n)))
-          .slice()
-          .sort((a, b) => a.start - b.start || a.midi - b.midi);
-        scheduleIndex = 0;
-        while (
-          scheduleIndex < playbackNotes.length &&
-          playbackNotes[scheduleIndex].end <= startAt
-        ) {
-          scheduleIndex++;
-        }
-        schedulePolyWindow();
-        scheduleTimer = setInterval(schedulePolyWindow, 80);
-      } else {
-        for (const n of state.notes) {
-          if (n.end <= startAt) continue;
-          const when = startTime + Math.max(0, n.start - startAt);
-          const voiceDur = Math.max(0.08, n.end - Math.max(n.start, startAt));
-          makeVoice(n, when, voiceDur);
-        }
+      // 大量音符不能一次性建节点；用短窗口滚动调度，避免主线程一次性创建上千个振荡器。
+      playbackNotes = state.notes
+        .filter((n) => !state.mutedParts.has(notePart(n)))
+        .slice()
+        .sort((a, b) => a.start - b.start || a.midi - b.midi);
+      scheduleIndex = 0;
+      while (
+        scheduleIndex < playbackNotes.length &&
+        playbackNotes[scheduleIndex].end <= startAt
+      ) {
+        scheduleIndex++;
       }
+      schedulePolyWindow();
+      scheduleTimer = setInterval(schedulePolyWindow, 80);
     }
 
     updateControls();
@@ -13076,7 +13328,42 @@ return a / b;`,k5=`
   };
 
   function makePolyVoice(note, when, duration) {
-    makeVoice(note, when, duration, true);
+    const ctx = audioCtx;
+    if (!ctx) return;
+    const timbre = TIMBRES[state.timbre];
+    if (!timbre) return;
+    if (timbre.drum) {
+      playDrum(note, when, true);
+      return;
+    }
+    const profile = TONE_PROFILES[timbre.id] || TONE_PROFILES.piano;
+    const freq = Core.midiToFreq(note.midi) * Math.pow(2, state.tuning / 1200);
+    const v = Core.clamp(note.velocity / 127, 0.05, 1);
+    // 复音试听只用一个振荡器 + 包络：几百上千个音符时也不会拖垮主线程。
+    const gain = ctx.createGain();
+    const peak = Math.pow(v, 1.15) * profile.gain * 0.32;
+    const attack = Math.min(0.02, Math.max(0.003, profile.attack || 0.005));
+    const hold = Math.max(0.08, Math.min(duration, 6));
+    const stopAt = when + hold + 0.1;
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.linearRampToValueAtTime(Math.max(0.0002, peak), when + attack);
+    gain.gain.exponentialRampToValueAtTime(
+      Math.max(0.0002, peak * 0.3),
+      when + attack + Math.min(0.18, hold * 0.35)
+    );
+    gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+    const osc = ctx.createOscillator();
+    // 复音试听不要用原始锯齿波：高频音符会刺耳。高音区直接用正弦。
+    osc.type = note.midi >= 60 ? 'sine' : 'triangle';
+    osc.frequency.value = freq;
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start(when);
+    osc.stop(stopAt);
+    activeNodes.push(osc, gain);
+    osc.onended = () => {
+      activeNodes = activeNodes.filter((x) => x !== osc && x !== gain);
+    };
   }
 
   let noiseBuffer = null;
@@ -13380,6 +13667,11 @@ return a / b;`,k5=`
       try { previewSource.stop(); } catch (e) { /* already stopped */ }
       try { previewSource.disconnect(); } catch (e) { /* ignore */ }
       previewSource = null;
+    }
+    if (playbackSource) {
+      try { playbackSource.stop(); } catch (e) { /* already stopped */ }
+      try { playbackSource.disconnect(); } catch (e) { /* ignore */ }
+      playbackSource = null;
     }
     for (const node of activeNodes) {
       try {
@@ -13836,6 +14128,8 @@ return a / b;`,k5=`
 </script>
 </body>
 </html>
+
+
 
 
 

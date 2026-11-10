@@ -156,6 +156,18 @@ powershell -ExecutionPolicy Bypass -File shell/build.ps1
 - 超长音频会占用较多内存；建议单次不超过 10 分钟。
 - 自动 BPM 是估算值，可以在界面手动改。
 
+### 更高精度：使用 SheetSage2
+
+内置 Basic Pitch 是轻量离线模型。若你本机已经安装 SheetSage2 一类的大型扒谱工具，
+可以把它作为“高精度前端”：
+
+1. 在 SheetSage2 里完成扒谱
+2. 导出 MIDI
+3. 回到本软件，侧栏「高精度工作流」→ **导入 SheetSage2 MIDI**
+
+导入后仍可在本软件里编辑、试听、导出 MIDI。  
+这不会把 2.5 GB 的 MERT 模型塞进安装包，也不会改变内置 Basic Pitch 的离线识别路径。
+
 ## NCM 与版权
 
 NCM 解密功能只建议用于**你已获得合法使用权**的文件。
