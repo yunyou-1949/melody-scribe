@@ -1,0 +1,35 @@
+# build output
+release/
+dist/
+*.exe
+*.dll
+*.pdb
+*.zip
+
+# WebView2 runtime data
+WebView2Data*/
+**/WebView2Data/
+
+# local test output / media
+tests/downloads/
+tests/song-downloads/
+tests/song-raw/
+tests/ncm-downloads/
+tests/swamp-downloads/
+exports/
+*.wav
+*.mp3
+*.flac
+*.ncm
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# editor / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
