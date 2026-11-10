@@ -146,6 +146,7 @@ powershell -ExecutionPolicy Bypass -File shell/build.ps1
 │  ├─ MelodyScribe.cs         # WebView2 窗口外壳
 │  ├─ app.manifest            # PerMonitorV2 DPI
 │  └─ build.ps1
+├─ sheetsage_bridge.py        # 给本机 SheetSage2 加 CORS 的一键桥接
 ├─ installer/
 │  ├─ 安装.vbs
 │  └─ 安装说明.txt
@@ -168,17 +169,19 @@ powershell -ExecutionPolicy Bypass -File shell/build.ps1
 - 超长音频会占用较多内存；建议单次不超过 10 分钟。
 - 自动 BPM 是估算值，可以在界面手动改。
 
-### 更高精度：使用 SheetSage2
+### 更高精度：一键调用本机 SheetSage2
 
-内置 Basic Pitch 是轻量离线模型。若你本机已经安装 SheetSage2 一类的大型扒谱工具，
-可以把它作为“高精度前端”：
+内置 Basic Pitch 是轻量离线模型。若你本机已经安装 SheetSage2 WebUI，
+可以在侧栏点击 **「用 SheetSage2 高精度识别」**：
 
-1. 在 SheetSage2 里完成扒谱
-2. 导出 MIDI
-3. 回到本软件，侧栏「高精度工作流」→ **导入 SheetSage2 MIDI**
+1. 自动启动本地 SheetSage2 服务（带 CORS 桥接）
+2. 自动上传当前音频
+3. 自动创建任务并显示进度
+4. 完成后自动把谱面导入本软件
 
-导入后仍可在本软件里编辑、试听、导出 MIDI。  
-这不会把 2.5 GB 的 MERT 模型塞进安装包，也不会改变内置 Basic Pitch 的离线识别路径。
+仍然可以手动「导入 SheetSage2 MIDI」。  
+本项目**不包含** 2.5 GB 的 MERT 模型，主安装包保持几 MB；SheetSage2 的
+代码、模型和 Python 环境由用户单独安装，并受其 CC BY-NC 4.0 许可约束。
 
 ## NCM 与版权
 
