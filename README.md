@@ -18,6 +18,8 @@
 - 单音旋律识别：适合人声、笛子、提琴等单声部素材
 - 复音识别：基于 [Basic Pitch](https://github.com/spotify/basic-pitch-ts)，可识别和弦、伴奏与低音
 - 识别引擎可切换：**离线 BasicPitch** / **在线 SheetSage2 高精度**
+- 导入音频后先选择识别方式，不会默认离线自动开跑
+- 自动匹配音色：默认大钢琴，按谱面低音/高音特征调整
 - 音符级分轨：鼓组 / 贝斯 / 和声 / 主旋律，可分轨静音、分轨导出 MIDI
 - NCM 解密：支持网易云音乐 `.ncm` 本地转 MP3 / FLAC
 - 本地离线：音频不上传服务器
@@ -77,7 +79,7 @@
 
 | 版本 | 体积 | 说明 |
 |---|---:|---|
-| **轻量联网版** | **5.33 MiB** | 安装包小；内置 Basic Pitch 可离线识别；高精度一键调用本机已有的 SheetSage2，不重复下载 6 GB 模型 |
+| **轻量联网版** | **5.34 MiB** | 安装包小；内置 Basic Pitch 可离线识别；高精度一键调用本机已有的 SheetSage2，不重复下载 6 GB 模型 |
 | **离线完整版** | 解压后 **6.0 GiB** | 内置 SheetSage2 + MERT + Python 运行时；完全离线；只建议个人使用，不要公开二次分发 |
 
 轻量版到 [GitHub Releases](https://github.com/yunyou-1949/melody-scribe/releases/latest) 下载 `MelodyScribe-vX.Y.Z-Setup.zip`，解压后双击 `安装.vbs`。
@@ -233,4 +235,5 @@ NCM 解密功能只建议用于**你已获得合法使用权**的文件。
 - SheetSage2 / MERT 权重：CC BY-NC 4.0，**仅限非商业**；本项目不包含其代码和模型
 
 详见 [USAGE.md](USAGE.md) 和 [NOTICE.md](NOTICE.md)。
+
 

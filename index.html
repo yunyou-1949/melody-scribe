@@ -1140,6 +1140,77 @@ select:focus-visible {
   backdrop-filter: blur(3px);
 }
 
+.mode-prompt {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(25, 18, 10, 0.68);
+  backdrop-filter: blur(4px);
+}
+
+.mode-card {
+  width: min(520px, calc(100vw - 28px));
+  padding: 24px;
+  color: #40331c;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 40%),
+    linear-gradient(180deg, #d8ceac, #c1b58d);
+  border: 1px solid #8c7850;
+  border-radius: 5px;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.45);
+}
+
+.mode-card h2 {
+  margin: 0 0 6px;
+  font-family: "STSong", "SimSun", serif;
+  font-size: 22px;
+  letter-spacing: 0.08em;
+}
+
+.mode-card p {
+  margin: 0 0 16px;
+  color: #6e5d3c;
+  font-size: 12px;
+}
+
+.mode-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.mode-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 14px;
+  color: #3b2f1b;
+  text-align: left;
+  background: linear-gradient(180deg, #eee2bf, #d3c49e);
+  border: 1px solid #99865d;
+  border-radius: 4px;
+  box-shadow: 0 2px 0 rgba(255, 255, 255, 0.4) inset;
+  cursor: pointer;
+}
+
+.mode-btn strong { font-size: 14px; }
+.mode-btn span { color: #6f5d3c; font-size: 10px; line-height: 1.5; }
+.mode-btn.accent { border-color: #b2873e; background: linear-gradient(180deg, #f1d68a, #d1a54d); }
+
+.mode-cancel {
+  display: block;
+  margin: 14px auto 0;
+  color: #6d5b38;
+  font-size: 11px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 .analyzer-card {
   width: 370px;
   padding: 26px 26px 20px;
@@ -1845,7 +1916,7 @@ select:focus-visible {
       <div class="brand">
         <div class="brand-mark brand-avatar" aria-hidden="true"><img src="brand-avatar.png" alt="大肥鱼"></div>
         <div class="brand-copy">
-          <h1>旋律抄谱机<span class="fatty-badge">大肥鱼</span><span class="version-badge">v1.5.4</span></h1>
+          <h1>旋律抄谱机<span class="fatty-badge">大肥鱼</span><span class="version-badge">v1.5.6</span></h1>
           <p>大肥鱼 · MELODY SCRIBE · 音频自动抄谱</p>
         </div>
       </div>
@@ -2120,6 +2191,24 @@ select:focus-visible {
       <div class="scan-progress" id="overlayProgress"><span id="overlayBar"></span></div>
       <div class="overlay-meta"><span id="overlayPercent">0%</span><span id="overlayEta">准备中</span></div>
       <small>离线处理 · 音频不会离开本机</small>
+    </div>
+  </div>
+
+  <div class="mode-prompt hidden" id="modePrompt" role="dialog" aria-modal="true" aria-labelledby="modePromptTitle">
+    <div class="mode-card">
+      <h2 id="modePromptTitle">选择识别方式</h2>
+      <p id="modePromptText">这首歌要用哪种方式识别？</p>
+      <div class="mode-actions">
+        <button type="button" class="mode-btn" id="modeOfflineBtn">
+          <strong>离线识别</strong>
+          <span>BasicPitch · 本地快速 · 不联网</span>
+        </button>
+        <button type="button" class="mode-btn accent" id="modeOnlineBtn">
+          <strong>在线高精度</strong>
+          <span>SheetSage2 · 更准 · 需本机安装</span>
+        </button>
+      </div>
+      <button type="button" class="mode-cancel" id="modeCancelBtn">先不识别</button>
     </div>
   </div>
 
@@ -9685,6 +9774,7 @@ return a / b;`,k5=`
 
   const TIMBRE_RANGES = {
     piano: [21, 108],
+    grand: [21, 108],
     acoustic: [40, 88],
     bass: [28, 67],
     drums: [35, 59],
@@ -9835,6 +9925,11 @@ return a / b;`,k5=`
     overlayBar: $('#overlayBar'),
     overlayPercent: $('#overlayPercent'),
     overlayEta: $('#overlayEta'),
+    modePrompt: $('#modePrompt'),
+    modePromptText: $('#modePromptText'),
+    modeOfflineBtn: $('#modeOfflineBtn'),
+    modeOnlineBtn: $('#modeOnlineBtn'),
+    modeCancelBtn: $('#modeCancelBtn'),
     recordPill: $('#recordPill'),
     recordTime: $('#recordTime'),
     recordStopBtn: $('#recordStopBtn'),
@@ -9905,7 +10000,8 @@ return a / b;`,k5=`
     playMode: null,
     playFrom: 0,
     playStartCtx: 0,
-    timbre: 0,
+    timbre: 1,
+    autoTimbre: true,
     mmcFormat: false,
 
     // 状态
@@ -10036,6 +10132,9 @@ return a / b;`,k5=`
       if (f) handleFile(f);
     });
     els.sheetsageBtn.addEventListener('click', runSheetSage);
+    els.modeOfflineBtn.addEventListener('click', () => chooseRecognitionMode('offline'));
+    els.modeOnlineBtn.addEventListener('click', () => chooseRecognitionMode('online'));
+    els.modeCancelBtn.addEventListener('click', hideModePrompt);
     els.instrumentTopBtn.addEventListener('click', recognizeInstruments);
 
     els.bpmInput.addEventListener('change', onBpmChange);
@@ -10103,6 +10202,10 @@ return a / b;`,k5=`
     });
 
     window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('beforeunload', () => {
+      try { if (state.playing) stopPlayback(false); } catch (e) {}
+      try { if (audioCtx && audioCtx.state === 'running') audioCtx.suspend(); } catch (e) {}
+    });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && state.recording) stopRecording();
     });
@@ -10549,6 +10652,7 @@ return a / b;`,k5=`
     state.analysis = { mode: 'sheetsage', bpm: state.bpm, duration: state.audioDuration };
     state.dirty = false;
     renderAll();
+    chooseAutoTimbre();
     return notes.length;
   }
 
@@ -10662,6 +10766,7 @@ return a / b;`,k5=`
         state.analysis = { mode: 'midi', bpm: state.bpm, duration, noteCount: state.notes.length };
         state.dirty = false;
         renderAll();
+        chooseAutoTimbre();
         hideOverlay();
         showToast('MIDI 已导入 · ' + state.notes.length + ' 音符 · ' + formatBpm(state.bpm) + ' BPM（无原音，可编辑/导出）', 'success');
       } catch (err) {
@@ -10690,8 +10795,8 @@ return a / b;`,k5=`
         const buffer = await ctx.decodeAudioData(decoded.audio.buffer.slice(0));
         hideOverlay();
         setAudio(buffer, outName, blob);
-        showToast('NCM 已解密为 ' + ext.toUpperCase() + ' · 正在自动识别…');
-        setTimeout(analyzeCurrent, 180);
+        showToast('NCM 已解密为 ' + ext.toUpperCase() + ' · 请选择识别方式');
+        showModePrompt(outName);
       } catch (err) {
         hideOverlay();
         console.error(err);
@@ -10712,8 +10817,8 @@ return a / b;`,k5=`
       const buffer = await ctx.decodeAudioData(array);
       hideOverlay();
       setAudio(buffer, file.name, file);
-      showToast('已载入：' + file.name + '，正在自动识别…');
-      setTimeout(analyzeCurrent, 180);
+      showToast('已载入：' + file.name + ' · 请选择识别方式');
+      showModePrompt(file.name);
     } catch (err) {
       hideOverlay();
       console.error(err);
@@ -11103,6 +11208,7 @@ return a / b;`,k5=`
       if (els.gridScroll) els.gridScroll.scrollLeft = 0;
       syncControls();
       renderAll();
+      chooseAutoTimbre();
 
       showToast(
         `复音识别完成 · ${state.notes.length} 音符 · ${formatBpm(state.bpm)} BPM · ${state.measures} 小节 · ${(performance.now() - started) / 1000 | 0}s`,
@@ -11173,6 +11279,7 @@ return a / b;`,k5=`
     if (els.gridScroll) els.gridScroll.scrollLeft = 0;
     syncControls();
     renderAll();
+    chooseAutoTimbre();
 
     const measureText = state.measures + ' 小节';
     const bpmText = formatBpm(state.bpm);
@@ -12917,7 +13024,8 @@ return a / b;`,k5=`
     els.statusMeterValue.textContent = state.beatsPerBar + '/' + state.beatUnit;
     const gridDenom = state.beatUnit * state.divisions;
     els.statusGrid.textContent = state.quantize ? '对齐 1/' + gridDenom : '自由节奏';
-    els.statusTimbre.textContent = '音色：' + TIMBRES[state.timbre].label + ' ›';
+    els.statusTimbre.textContent = '音色：' + TIMBRES[state.timbre].label +
+      (state.autoTimbre ? '（自动匹配）' : '') + ' ›';
 
     if (state.samples || state.notes.length) {
       const dur = state.audioDuration || 0;
@@ -13032,10 +13140,48 @@ return a / b;`,k5=`
       : '已切回普通音名格式');
   }
 
+  function chooseAutoTimbre() {
+    if (!state.autoTimbre) return;
+    const notes = state.notes || [];
+    let id = 'grand';
+    if (notes.length) {
+      let low = 0, high = 0, drums = 0, totalDur = 0;
+      for (const n of notes) {
+        if (n.midi <= 50) low++;
+        if (n.midi >= 72) high++;
+        if (notePart(n) === 'drums') drums++;
+        totalDur += n.duration || 0;
+      }
+      const avgDur = totalDur / notes.length;
+      if (drums / notes.length > 0.38) id = 'drums';
+      else if (low / notes.length > 0.58 && avgDur < 1.4) id = 'bass';
+      else if (avgDur < 0.22 && high / notes.length > 0.3) id = 'guitar';
+      else if (high / notes.length > 0.55 && avgDur > 0.55) id = 'violin';
+      else id = 'grand';
+    }
+    const index = TIMBRES.findIndex((t) => t.id === id);
+    state.timbre = index >= 0 ? index : 1;
+    if (id === 'grand') loadGrandSamples().catch(() => {});
+    updateStatus();
+  }
+
   function buildTimbreMenu() {
     const menu = els.timbreMenu;
     if (!menu) return;
     menu.replaceChildren();
+    const autoBtn = document.createElement('button');
+    autoBtn.type = 'button';
+    autoBtn.className = state.autoTimbre ? 'active' : '';
+    autoBtn.textContent = '自动匹配（推荐）';
+    autoBtn.addEventListener('click', () => {
+      if (state.playing) stopPlayback(false);
+      state.autoTimbre = true;
+      chooseAutoTimbre();
+      menu.hidden = true;
+      updateStatus();
+      renderAll();
+    });
+    menu.appendChild(autoBtn);
     TIMBRES.forEach((t, i) => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -13043,6 +13189,7 @@ return a / b;`,k5=`
       b.className = i === state.timbre ? 'active' : '';
       b.addEventListener('click', () => {
         if (state.playing) stopPlayback(false);
+        state.autoTimbre = false;
         state.timbre = i;
         if (t.id === 'grand') {
           loadGrandSamples().catch(() => {
@@ -14377,6 +14524,26 @@ return a / b;`,k5=`
   /* 杂项                                                                   */
   /* ====================================================================== */
 
+  function showModePrompt(name) {
+    if (!els.modePrompt) return;
+    if (els.modePromptText) {
+      els.modePromptText.textContent = (name ? '已载入：' + name + '。' : '') +
+        '选择识别方式后再开始，避免导入后直接按默认引擎跑。';
+    }
+    els.modePrompt.classList.remove('hidden');
+  }
+
+  function hideModePrompt() {
+    if (els.modePrompt) els.modePrompt.classList.add('hidden');
+  }
+
+  function chooseRecognitionMode(engine) {
+    state.recognitionEngine = engine;
+    if (els.engineSelect) els.engineSelect.value = engine;
+    hideModePrompt();
+    setTimeout(analyzeCurrent, 120);
+  }
+
   function showOverlay(title, text) {
     els.overlayTitle.textContent = title;
     els.overlayText.textContent = text;
@@ -14448,6 +14615,8 @@ return a / b;`,k5=`
 </script>
 </body>
 </html>
+
+
 
 
 

@@ -38,6 +38,7 @@
 
   const TIMBRE_RANGES = {
     piano: [21, 108],
+    grand: [21, 108],
     acoustic: [40, 88],
     bass: [28, 67],
     drums: [35, 59],
@@ -188,6 +189,11 @@
     overlayBar: $('#overlayBar'),
     overlayPercent: $('#overlayPercent'),
     overlayEta: $('#overlayEta'),
+    modePrompt: $('#modePrompt'),
+    modePromptText: $('#modePromptText'),
+    modeOfflineBtn: $('#modeOfflineBtn'),
+    modeOnlineBtn: $('#modeOnlineBtn'),
+    modeCancelBtn: $('#modeCancelBtn'),
     recordPill: $('#recordPill'),
     recordTime: $('#recordTime'),
     recordStopBtn: $('#recordStopBtn'),
@@ -258,7 +264,8 @@
     playMode: null,
     playFrom: 0,
     playStartCtx: 0,
-    timbre: 0,
+    timbre: 1,
+    autoTimbre: true,
     mmcFormat: false,
 
     // 状态
@@ -389,6 +396,9 @@
       if (f) handleFile(f);
     });
     els.sheetsageBtn.addEventListener('click', runSheetSage);
+    els.modeOfflineBtn.addEventListener('click', () => chooseRecognitionMode('offline'));
+    els.modeOnlineBtn.addEventListener('click', () => chooseRecognitionMode('online'));
+    els.modeCancelBtn.addEventListener('click', hideModePrompt);
     els.instrumentTopBtn.addEventListener('click', recognizeInstruments);
 
     els.bpmInput.addEventListener('change', onBpmChange);
@@ -456,6 +466,10 @@
     });
 
     window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('beforeunload', () => {
+      try { if (state.playing) stopPlayback(false); } catch (e) {}
+      try { if (audioCtx && audioCtx.state === 'running') audioCtx.suspend(); } catch (e) {}
+    });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && state.recording) stopRecording();
     });
@@ -902,6 +916,7 @@
     state.analysis = { mode: 'sheetsage', bpm: state.bpm, duration: state.audioDuration };
     state.dirty = false;
     renderAll();
+    chooseAutoTimbre();
     return notes.length;
   }
 
@@ -1015,6 +1030,7 @@
         state.analysis = { mode: 'midi', bpm: state.bpm, duration, noteCount: state.notes.length };
         state.dirty = false;
         renderAll();
+        chooseAutoTimbre();
         hideOverlay();
         showToast('MIDI 已导入 · ' + state.notes.length + ' 音符 · ' + formatBpm(state.bpm) + ' BPM（无原音，可编辑/导出）', 'success');
       } catch (err) {
@@ -1043,8 +1059,8 @@
         const buffer = await ctx.decodeAudioData(decoded.audio.buffer.slice(0));
         hideOverlay();
         setAudio(buffer, outName, blob);
-        showToast('NCM 已解密为 ' + ext.toUpperCase() + ' · 正在自动识别…');
-        setTimeout(analyzeCurrent, 180);
+        showToast('NCM 已解密为 ' + ext.toUpperCase() + ' · 请选择识别方式');
+        showModePrompt(outName);
       } catch (err) {
         hideOverlay();
         console.error(err);
@@ -1065,8 +1081,8 @@
       const buffer = await ctx.decodeAudioData(array);
       hideOverlay();
       setAudio(buffer, file.name, file);
-      showToast('已载入：' + file.name + '，正在自动识别…');
-      setTimeout(analyzeCurrent, 180);
+      showToast('已载入：' + file.name + ' · 请选择识别方式');
+      showModePrompt(file.name);
     } catch (err) {
       hideOverlay();
       console.error(err);
@@ -1456,6 +1472,7 @@
       if (els.gridScroll) els.gridScroll.scrollLeft = 0;
       syncControls();
       renderAll();
+      chooseAutoTimbre();
 
       showToast(
         `复音识别完成 · ${state.notes.length} 音符 · ${formatBpm(state.bpm)} BPM · ${state.measures} 小节 · ${(performance.now() - started) / 1000 | 0}s`,
@@ -1526,6 +1543,7 @@
     if (els.gridScroll) els.gridScroll.scrollLeft = 0;
     syncControls();
     renderAll();
+    chooseAutoTimbre();
 
     const measureText = state.measures + ' 小节';
     const bpmText = formatBpm(state.bpm);
@@ -3270,7 +3288,8 @@
     els.statusMeterValue.textContent = state.beatsPerBar + '/' + state.beatUnit;
     const gridDenom = state.beatUnit * state.divisions;
     els.statusGrid.textContent = state.quantize ? '对齐 1/' + gridDenom : '自由节奏';
-    els.statusTimbre.textContent = '音色：' + TIMBRES[state.timbre].label + ' ›';
+    els.statusTimbre.textContent = '音色：' + TIMBRES[state.timbre].label +
+      (state.autoTimbre ? '（自动匹配）' : '') + ' ›';
 
     if (state.samples || state.notes.length) {
       const dur = state.audioDuration || 0;
@@ -3385,10 +3404,48 @@
       : '已切回普通音名格式');
   }
 
+  function chooseAutoTimbre() {
+    if (!state.autoTimbre) return;
+    const notes = state.notes || [];
+    let id = 'grand';
+    if (notes.length) {
+      let low = 0, high = 0, drums = 0, totalDur = 0;
+      for (const n of notes) {
+        if (n.midi <= 50) low++;
+        if (n.midi >= 72) high++;
+        if (notePart(n) === 'drums') drums++;
+        totalDur += n.duration || 0;
+      }
+      const avgDur = totalDur / notes.length;
+      if (drums / notes.length > 0.38) id = 'drums';
+      else if (low / notes.length > 0.58 && avgDur < 1.4) id = 'bass';
+      else if (avgDur < 0.22 && high / notes.length > 0.3) id = 'guitar';
+      else if (high / notes.length > 0.55 && avgDur > 0.55) id = 'violin';
+      else id = 'grand';
+    }
+    const index = TIMBRES.findIndex((t) => t.id === id);
+    state.timbre = index >= 0 ? index : 1;
+    if (id === 'grand') loadGrandSamples().catch(() => {});
+    updateStatus();
+  }
+
   function buildTimbreMenu() {
     const menu = els.timbreMenu;
     if (!menu) return;
     menu.replaceChildren();
+    const autoBtn = document.createElement('button');
+    autoBtn.type = 'button';
+    autoBtn.className = state.autoTimbre ? 'active' : '';
+    autoBtn.textContent = '自动匹配（推荐）';
+    autoBtn.addEventListener('click', () => {
+      if (state.playing) stopPlayback(false);
+      state.autoTimbre = true;
+      chooseAutoTimbre();
+      menu.hidden = true;
+      updateStatus();
+      renderAll();
+    });
+    menu.appendChild(autoBtn);
     TIMBRES.forEach((t, i) => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -3396,6 +3453,7 @@
       b.className = i === state.timbre ? 'active' : '';
       b.addEventListener('click', () => {
         if (state.playing) stopPlayback(false);
+        state.autoTimbre = false;
         state.timbre = i;
         if (t.id === 'grand') {
           loadGrandSamples().catch(() => {
@@ -4729,6 +4787,26 @@
   /* ====================================================================== */
   /* 杂项                                                                   */
   /* ====================================================================== */
+
+  function showModePrompt(name) {
+    if (!els.modePrompt) return;
+    if (els.modePromptText) {
+      els.modePromptText.textContent = (name ? '已载入：' + name + '。' : '') +
+        '选择识别方式后再开始，避免导入后直接按默认引擎跑。';
+    }
+    els.modePrompt.classList.remove('hidden');
+  }
+
+  function hideModePrompt() {
+    if (els.modePrompt) els.modePrompt.classList.add('hidden');
+  }
+
+  function chooseRecognitionMode(engine) {
+    state.recognitionEngine = engine;
+    if (els.engineSelect) els.engineSelect.value = engine;
+    hideModePrompt();
+    setTimeout(analyzeCurrent, 120);
+  }
 
   function showOverlay(title, text) {
     els.overlayTitle.textContent = title;
