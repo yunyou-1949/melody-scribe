@@ -3394,6 +3394,7 @@
       b.textContent = t.label;
       b.className = i === state.timbre ? 'active' : '';
       b.addEventListener('click', () => {
+        if (state.playing) stopPlayback(false);
         state.timbre = i;
         if (state.mmcFormat) {
           state.lowMidi = 48;
@@ -3905,7 +3906,7 @@
     const profile = TONE_PROFILES[timbre.id] || TONE_PROFILES.piano;
     const freq = Core.midiToFreq(note.midi) * Math.pow(2, state.tuning / 1200);
     const v = Core.clamp(note.velocity / 127, 0.05, 1);
-    // 复音试听只用一个振荡器 + 包络：几百上千个音符时也不会拖垮主线程。
+    // 轻量复音声部：一个振荡器 + 每音色低通/带通 + 包络。
     const gain = ctx.createGain();
     const peak = Math.pow(v, 1.15) * profile.gain * 0.32;
     const attack = Math.min(0.02, Math.max(0.003, profile.attack || 0.005));
@@ -3918,17 +3919,32 @@
       when + attack + Math.min(0.18, hold * 0.35)
     );
     gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = profile.bandpass ? 'bandpass' : 'lowpass';
+    filter.frequency.value = profile.filter || 3200;
+    filter.Q.value = profile.q || 0.8;
+
     const osc = ctx.createOscillator();
-    // 复音试听不要用原始锯齿波：高频音符会刺耳。高音区直接用正弦。
-    osc.type = note.midi >= 60 ? 'sine' : 'triangle';
+    // 用音色自己的主波形，再经过滤波器；这样切换音色会真的改变听感。
+    osc.type = profile.osc && profile.osc[0] ? profile.osc[0][0] : 'triangle';
     osc.frequency.value = freq;
-    osc.connect(gain);
+    let tail = filter;
+    osc.connect(filter);
+    if (profile.drive) {
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = makeDistortionCurve(profile.drive);
+      shaper.oversample = '2x';
+      filter.connect(shaper);
+      tail = shaper;
+    }
+    tail.connect(gain);
     gain.connect(masterGain);
     osc.start(when);
     osc.stop(stopAt);
-    activeNodes.push(osc, gain);
+    activeNodes.push(osc, filter, gain, tail);
     osc.onended = () => {
-      activeNodes = activeNodes.filter((x) => x !== osc && x !== gain);
+      activeNodes = activeNodes.filter((x) => x !== osc && x !== filter && x !== gain && x !== tail);
     };
   }
 
