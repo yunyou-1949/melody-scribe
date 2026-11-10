@@ -1,4 +1,4 @@
-旋律抄谱机 · 使用声明
+﻿旋律抄谱机 · 使用声明
 
 1. 完全免费
 本项目没有付费版、激活码或内购，完全免费使用。
@@ -17,8 +17,12 @@
 - NCM 格式参考 ncmdump / ncm2mp3 / pyNCMDUMP 的公开实现
 以上成果版权归各自作者，详见 USAGE.md 与 NOTICE.md。
 
-4. 音频版权
+4. 大钢琴采样:
+FluidR3 GM by Frank Wen，CC BY 3.0 US；via midi-js-soundfonts / Paul Rosen。
+
+5. 音频版权
 请只处理你拥有合法使用权的音频。本项目不提供音乐下载，不附带商业音乐。
 
 作者：（小马利亚）Maneightout / 游云
 反馈 QQ：2171227679
+

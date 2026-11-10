@@ -1,0 +1,16 @@
+Piano samples
+=============
+
+FluidR3 GM by Frank Wen.
+License: Creative Commons Attribution 3.0 US (CC BY 3.0 US)
+https://creativecommons.org/licenses/by/3.0/us/
+
+Pre-rendered MP3 samples from Paul Rosen's fork of gleitz/midi-js-soundfonts:
+https://github.com/paulrosen/midi-js-soundfonts
+https://raw.githubusercontent.com/paulrosen/midi-js-soundfonts/gh-pages/FluidR3_GM/acoustic_grand_piano-mp3.js
+
+The samples are used only for the "大钢琴 / Grand Piano" playback timbre.
+They are pitch-shifted to cover the keyboard; no audio content is claimed as
+original project code.
+
+Attribution: FluidR3 GM / Frank Wen, CC BY 3.0 US.

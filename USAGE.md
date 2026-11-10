@@ -74,3 +74,10 @@ NCM 容器格式与解密流程参考了公开的 ncmdump 实现：
 
 - （小马利亚）Maneightout / 游云
 - 反馈 QQ：2171227679
+
+## 大钢琴采样
+
+- FluidR3 GM by Frank Wen
+- License: CC BY 3.0 US
+- Source: https://github.com/paulrosen/midi-js-soundfonts
+- 用于「大钢琴」试听音色，经变调覆盖键盘

@@ -11,6 +11,7 @@
 
   const TIMBRES = [
     { id: 'piano', label: '钢琴', program: 0 },
+    { id: 'grand', label: '大钢琴', program: 0 },
     { id: 'acoustic', label: '木吉他', program: 24 },
     { id: 'bass', label: '贝斯', program: 33 },
     { id: 'drums', label: '鼓组', program: 0, drum: true },
@@ -3396,6 +3397,11 @@
       b.addEventListener('click', () => {
         if (state.playing) stopPlayback(false);
         state.timbre = i;
+        if (t.id === 'grand') {
+          loadGrandSamples().catch(() => {
+            showToast('大钢琴采样加载失败，暂时使用合成钢琴', 'error');
+          });
+        }
         if (state.mmcFormat) {
           state.lowMidi = 48;
           state.highMidi = 71;
@@ -3767,6 +3773,14 @@
     }
     const ctx = ensureAudioContext();
     stopPlayback(false);
+    if (mode === 'notes' && state.timbre === 'grand' && !grandBuffers) {
+      try {
+        await loadGrandSamples();
+      } catch (err) {
+        console.error(err);
+        showToast('大钢琴采样加载失败，暂时使用合成钢琴', 'error');
+      }
+    }
 
     const total = mode === 'original' ? state.audioDuration : getTimelineEnd();
     let startAt = from || 0;
@@ -3894,6 +3908,81 @@
     },
   };
 
+  const GRAND_SAMPLES = [
+    { midi: 36, file: 'C2.mp3' },
+    { midi: 48, file: 'C3.mp3' },
+    { midi: 60, file: 'C4.mp3' },
+    { midi: 72, file: 'C5.mp3' },
+    { midi: 84, file: 'C6.mp3' },
+    { midi: 96, file: 'C7.mp3' },
+  ];
+  let grandBuffers = null;
+  let grandLoadPromise = null;
+
+  async function loadGrandSamples() {
+    if (grandBuffers) return grandBuffers;
+    if (grandLoadPromise) return grandLoadPromise;
+    grandLoadPromise = (async () => {
+      const ctx = ensureAudioContext();
+      const encoded = window.GRAND_PIANO_B64 || {};
+      const buffers = {};
+      await Promise.all(GRAND_SAMPLES.map(async (item) => {
+        const b64 = encoded[item.midi];
+        if (!b64) throw new Error('piano sample missing: ' + item.file);
+        const binary = atob(b64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        buffers[item.midi] = await ctx.decodeAudioData(bytes.buffer);
+      }));
+      grandBuffers = buffers;
+      return buffers;
+    })().catch((err) => {
+      grandLoadPromise = null;
+      throw err;
+    });
+    return grandLoadPromise;
+  }
+
+  function nearestGrandSample(midi) {
+    let best = GRAND_SAMPLES[0];
+    let dist = Math.abs(midi - best.midi);
+    for (const item of GRAND_SAMPLES) {
+      const d = Math.abs(midi - item.midi);
+      if (d < dist) { best = item; dist = d; }
+    }
+    return best;
+  }
+
+  function makeGrandVoice(note, when, duration) {
+    const ctx = audioCtx;
+    if (!ctx || !grandBuffers) return false;
+    const sample = nearestGrandSample(note.midi);
+    const buffer = grandBuffers[sample.midi];
+    if (!buffer) return false;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const rate = Math.pow(2, (note.midi - sample.midi) / 12 + state.tuning / 1200);
+    src.playbackRate.value = rate;
+    const gain = ctx.createGain();
+    const v = Core.clamp(note.velocity / 127, 0.05, 1);
+    const peak = Math.pow(v, 1.1) * 0.34;
+    const hold = Math.max(0.1, Math.min(duration, 6));
+    const stopAt = when + hold + 0.12;
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.linearRampToValueAtTime(Math.max(0.0002, peak), when + 0.006);
+    gain.gain.setValueAtTime(Math.max(0.0002, peak * 0.82), when + Math.min(0.2, hold * 0.4));
+    gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+    src.connect(gain);
+    gain.connect(masterGain);
+    src.start(when);
+    src.stop(Math.min(stopAt, when + buffer.duration / rate + 0.02));
+    activeNodes.push(src, gain);
+    src.onended = () => {
+      activeNodes = activeNodes.filter((x) => x !== src && x !== gain);
+    };
+    return true;
+  }
+
   function makePolyVoice(note, when, duration) {
     const ctx = audioCtx;
     if (!ctx) return;
@@ -3903,6 +3992,7 @@
       playDrum(note, when, true);
       return;
     }
+    if (timbre.id === 'grand' && makeGrandVoice(note, when, duration)) return;
     const profile = TONE_PROFILES[timbre.id] || TONE_PROFILES.piano;
     const freq = Core.midiToFreq(note.midi) * Math.pow(2, state.tuning / 1200);
     const v = Core.clamp(note.velocity / 127, 0.05, 1);
@@ -3993,6 +4083,7 @@
       playDrum(note, when, isPoly);
       return;
     }
+    if (timbre.id === 'grand' && makeGrandVoice(note, when, duration)) return;
     const profile = TONE_PROFILES[timbre.id] || TONE_PROFILES.piano;
     const freq = Core.midiToFreq(note.midi) * Math.pow(2, state.tuning / 1200);
     const v = Core.clamp(note.velocity / 127, 0.05, 1);
