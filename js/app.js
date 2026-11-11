@@ -1078,9 +1078,27 @@
     if (!stage || stage.state !== 'done') throw new Error('V2 扒谱超时');
 
     setOverlayProgress(0.97, '下载 V2 MIDI…');
+    let v2Bpm = null;
+    try {
+      const projectRes = await sheetSageV2Fetch(
+        '/api/jobs/' + encodeURIComponent(jobId) + '/project', {}, 15000);
+      if (projectRes.ok) {
+        const project = await projectRes.json();
+        const measures = (project.timeline && project.timeline.measures) || project.measures || [];
+        const values = measures.map((m) => Number(m.bpm)).filter((v) => v >= 30 && v <= 300);
+        if (values.length) {
+          values.sort((a, b) => a - b);
+          v2Bpm = Math.round(values[Math.floor(values.length / 2)] * 10) / 10;
+        }
+      }
+    } catch (e) { /* MIDI 自带 tempo 兜底 */ }
+
     const midiRes = await sheetSageV2Fetch('/api/jobs/' + encodeURIComponent(jobId) + '/files/transcription.mid', {}, 60000);
     if (!midiRes.ok) throw new Error('V2 MIDI 下载失败：HTTP ' + midiRes.status);
     const midi = parseMidiFile(await midiRes.arrayBuffer());
+    // SheetSage2 V2 的 transcription.mid 固定写 120 BPM；实际速度在 project.timeline。
+    // 音符时间已按秒对齐，这里只把真实 BPM 带回导出，MIDI 才不会显示成 120。
+    if (v2Bpm) midi.bpm = v2Bpm;
     return applyMidiToCurrent(midi);
   }
 

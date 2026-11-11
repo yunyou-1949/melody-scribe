@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.IO;
 using System.Net;
@@ -252,7 +252,7 @@ namespace MelodyScribe
                     PostInstallStatus("download", 0, "正在下载官方 V2 启动包（87.6 MiB）…");
                     using (var client = new WebClient())
                     {
-                        client.Headers.Add("User-Agent", "MelodyScribe/1.6.3");
+                        client.Headers.Add("User-Agent", "MelodyScribe/1.6.4");
                         client.DownloadProgressChanged += (s, e) =>
                             PostInstallStatus("download", e.ProgressPercentage,
                                 "正在下载 V2 启动包… " + (e.BytesReceived / 1024 / 1024) + " / " +
@@ -523,7 +523,7 @@ namespace MelodyScribe
                 core.Settings.AreDevToolsEnabled = false;
                 core.Settings.IsStatusBarEnabled = false;
                 core.Settings.AreDefaultContextMenusEnabled = false;
-                core.Settings.UserAgent = core.Settings.UserAgent + " MelodyScribe/1.6.3";
+                core.Settings.UserAgent = core.Settings.UserAgent + " MelodyScribe/1.6.4";
                 core.SetVirtualHostNameToFolderMapping(
                     "melody.local", appDir, CoreWebView2HostResourceAccessKind.Allow);
 
@@ -672,7 +672,7 @@ namespace MelodyScribe
                 };
 
                 web.ZoomFactor = 1.0;
-                core.Navigate("file:///" + appDir.Replace("\\", "/") + "/index.html?v=1.6.3");
+                core.Navigate("file:///" + appDir.Replace("\\", "/") + "/index.html?v=1.6.4");
             }
             catch (Exception ex)
             {
@@ -696,6 +696,7 @@ namespace MelodyScribe
         }
     }
 }
+
 
 
 

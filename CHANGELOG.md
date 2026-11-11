@@ -1,4 +1,7 @@
 ﻿# 更新记录
+## v1.6.4
+- 修复 SheetSage2 V2 导出的 MIDI 总是 120 BPM：现在从 V2 project.timeline 读取真实 BPM（实测 96）
+
 ## v1.6.3
 - 支持把新的轻量版 zip 直接拖进窗口自动更新，保留 SheetSage2 模型、设置和用户数据
 
