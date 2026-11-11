@@ -502,8 +502,41 @@
     window.addEventListener('drop', (e) => {
       e.preventDefault();
       const f = e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f) handleFile(f);
+      if (!f) return;
+      if (/\.zip$/i.test(f.name)) {
+        void applyUpdateZip(f);
+        return;
+      }
+      handleFile(f);
     });
+
+    async function applyUpdateZip(file) {
+      if (!window.chrome || !window.chrome.webview) {
+        showToast('请使用 Windows 独立窗口版导入更新包', 'error');
+        return;
+      }
+      if (file.size > 500 * 1024 * 1024) {
+        showToast('这是完整版压缩包，太大了；请拖入轻量版更新包', 'error');
+        return;
+      }
+      showToast('正在读取更新包…', 'info');
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        window.chrome.webview.postMessage('updateZipStart|' + file.name);
+        const chunkSize = 256 * 1024;
+        for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+          const slice = bytes.subarray(offset, Math.min(bytes.length, offset + chunkSize));
+          let binary = '';
+          for (let i = 0; i < slice.length; i++) binary += String.fromCharCode(slice[i]);
+          window.chrome.webview.postMessage('updateZipChunk|' + btoa(binary));
+          await new Promise((resolve) => setTimeout(resolve, 1));
+        }
+        window.chrome.webview.postMessage('updateZipEnd');
+        showToast('更新包已接收，软件正在重启…', 'success');
+      } catch (err) {
+        showToast('更新包读取失败：' + err.message, 'error');
+      }
+    }
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('beforeunload', () => {

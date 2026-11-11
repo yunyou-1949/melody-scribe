@@ -3,6 +3,7 @@ using System.Drawing;
 using System.IO;
 using System.Net;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -87,6 +88,8 @@ namespace MelodyScribe
         private readonly Label loading;
         private readonly string appDir;
         private System.Diagnostics.Process sheetSageProcess;
+        private MemoryStream updateBuffer;
+        private bool updating;
 
         public MainForm()
         {
@@ -109,6 +112,7 @@ namespace MelodyScribe
 
             web = new WebView2();
             web.Dock = DockStyle.Fill;
+            web.AllowExternalDrop = true;
             Controls.Add(web);
             loading = new Label();
             loading.Dock = DockStyle.Fill;
@@ -248,7 +252,7 @@ namespace MelodyScribe
                     PostInstallStatus("download", 0, "正在下载官方 V2 启动包（87.6 MiB）…");
                     using (var client = new WebClient())
                     {
-                        client.Headers.Add("User-Agent", "MelodyScribe/1.6.2");
+                        client.Headers.Add("User-Agent", "MelodyScribe/1.6.3");
                         client.DownloadProgressChanged += (s, e) =>
                             PostInstallStatus("download", e.ProgressPercentage,
                                 "正在下载 V2 启动包… " + (e.BytesReceived / 1024 / 1024) + " / " +
@@ -390,6 +394,93 @@ namespace MelodyScribe
             }
         }
 
+        private void OnUpdateDragEnter(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+                e.Effect = DragDropEffects.Copy;
+        }
+
+        private void OnUpdateDragDrop(object sender, DragEventArgs e)
+        {
+            try
+            {
+                string[] files = e.Data.GetData(DataFormats.FileDrop) as string[];
+                if (files == null || files.Length == 0) return;
+                string zip = files[0];
+                if (!zip.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                {
+                    MessageBox.Show("请拖入轻量版更新包（.zip）。", "Melody Scribe");
+                    return;
+                }
+                if (new FileInfo(zip).Length > 500L * 1024 * 1024)
+                {
+                    MessageBox.Show("这是完整版压缩包，体积太大。请拖入轻量版更新包，SheetSage2 模型会保留。",
+                        "Melody Scribe");
+                    return;
+                }
+                ApplyUpdate(zip);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("更新失败：" + ex.Message, "Melody Scribe");
+            }
+        }
+
+        private void ApplyUpdate(string zip)
+        {
+            string temp = Path.Combine(Path.GetTempPath(), "MelodyScribeUpdate-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(temp);
+            var tar = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "tar.exe",
+                Arguments = "-xf \"" + zip + "\" -C \"" + temp + "\"",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using (var process = System.Diagnostics.Process.Start(tar))
+            {
+                process.WaitForExit(120000);
+                if (process.ExitCode != 0) throw new Exception("更新包解压失败");
+            }
+
+            string[] exeFiles = Directory.GetFiles(temp, "MelodyScribe.exe", SearchOption.AllDirectories);
+            if (exeFiles.Length == 0) throw new Exception("更新包里没有 MelodyScribe.exe");
+            string source = Path.GetDirectoryName(exeFiles[0]);
+            if (!File.Exists(Path.Combine(source, "index.html")) ||
+                !Directory.Exists(Path.Combine(source, "js")))
+                throw new Exception("更新包结构不完整");
+
+            string version = "新版本";
+            try
+            {
+                string v = File.ReadAllText(Path.Combine(source, "VERSION")).Trim();
+                if (v.Length > 0) version = v;
+            }
+            catch { }
+
+            string script = Path.Combine(temp, "apply-update.ps1");
+            string src = source.Replace("'", "''");
+            string dst = appDir.Replace("'", "''");
+            string ps = "$ErrorActionPreference='SilentlyContinue'\r\n" +
+                        "Start-Sleep -Seconds 3\r\n" +
+                        "$src='" + src + "'\r\n" +
+                        "$dst='" + dst + "'\r\n" +
+                        "robocopy $src $dst /E /XD SheetSage2 WebView2Data output .update /XF sheetsage.json shell-start.log shell-nav.log shell-error.log /R:1 /W:1 | Out-Null\r\n" +
+                        "Start-Process -FilePath (Join-Path $dst 'MelodyScribe.exe') -WorkingDirectory $dst\r\n" +
+                        "Remove-Item -LiteralPath $src -Recurse -Force\r\n";
+            File.WriteAllText(script, ps, new UTF8Encoding(true));
+
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + script + "\"",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            System.Diagnostics.Process.Start(psi);
+            Application.Exit();
+        }
+
         private async void OnLoaded(object sender, EventArgs e)
         {
             try
@@ -432,7 +523,7 @@ namespace MelodyScribe
                 core.Settings.AreDevToolsEnabled = false;
                 core.Settings.IsStatusBarEnabled = false;
                 core.Settings.AreDefaultContextMenusEnabled = false;
-                core.Settings.UserAgent = core.Settings.UserAgent + " MelodyScribe/1.6.2";
+                core.Settings.UserAgent = core.Settings.UserAgent + " MelodyScribe/1.6.3";
                 core.SetVirtualHostNameToFolderMapping(
                     "melody.local", appDir, CoreWebView2HostResourceAccessKind.Allow);
 
@@ -492,7 +583,39 @@ namespace MelodyScribe
                     try
                     {
                         string message = args.TryGetWebMessageAsString();
-                        if (message == "openDownloads")
+                        if (message != null && message.StartsWith("updateZipStart|", StringComparison.Ordinal))
+                        {
+                            if (updating) return;
+                            updating = true;
+                            updateBuffer = new MemoryStream();
+                        }
+                        else if (message != null && message.StartsWith("updateZipChunk|", StringComparison.Ordinal))
+                        {
+                            if (updating && updateBuffer != null)
+                            {
+                                byte[] data = Convert.FromBase64String(message.Substring("updateZipChunk|".Length));
+                                updateBuffer.Write(data, 0, data.Length);
+                            }
+                        }
+                        else if (message == "updateZipEnd")
+                        {
+                            if (!updating || updateBuffer == null) return;
+                            string tempZip = Path.Combine(Path.GetTempPath(),
+                                "MelodyScribeUpdate-" + Guid.NewGuid().ToString("N") + ".zip");
+                            File.WriteAllBytes(tempZip, updateBuffer.ToArray());
+                            updateBuffer.Dispose();
+                            updateBuffer = null;
+                            updating = false;
+                            try
+                            {
+                                ApplyUpdate(tempZip);
+                            }
+                            catch (Exception ex)
+                            {
+                                MessageBox.Show("更新失败：" + ex.Message, "Melody Scribe");
+                            }
+                        }
+                        else if (message == "openDownloads")
                         {
                             string downloads = Path.Combine(
                                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
@@ -549,7 +672,7 @@ namespace MelodyScribe
                 };
 
                 web.ZoomFactor = 1.0;
-                core.Navigate("file:///" + appDir.Replace("\\", "/") + "/index.html?v=1.6.2");
+                core.Navigate("file:///" + appDir.Replace("\\", "/") + "/index.html?v=1.6.3");
             }
             catch (Exception ex)
             {
@@ -573,6 +696,7 @@ namespace MelodyScribe
         }
     }
 }
+
 
 
 

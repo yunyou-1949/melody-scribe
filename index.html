@@ -981,6 +981,13 @@ select:focus-visible {
   line-height: 1.55;
 }
 
+.side-note.drop-hint {
+  margin-top: 9px;
+  padding-top: 7px;
+  color: #8a6a2f;
+  border-top: 1px dashed rgba(122, 96, 48, .35);
+}
+
 .settings {
   padding-bottom: 14px;
 }
@@ -1943,7 +1950,7 @@ select:focus-visible {
       <div class="brand">
         <div class="brand-mark brand-avatar" aria-hidden="true"><img src="brand-avatar.png" alt="大肥鱼"></div>
         <div class="brand-copy">
-          <h1>旋律抄谱机<span class="fatty-badge">大肥鱼</span><span class="version-badge">v1.6.2</span></h1>
+          <h1>旋律抄谱机<span class="fatty-badge">大肥鱼</span><span class="version-badge">v1.6.3</span></h1>
           <p>大肥鱼 · MELODY SCRIBE · 音频自动抄谱</p>
         </div>
       </div>
@@ -2100,6 +2107,7 @@ select:focus-visible {
           <section class="side-section">
             <h2>使用声明</h2>
             <p class="side-note">完全免费 · 原创代码 MIT 开源。<br>Basic Pitch、TensorFlow.js、WebView2、SheetSage2 / MERT 等成果归原作者；SheetSage2 / MERT 权重仅限非商业。</p>
+            <p class="side-note drop-hint">把新的轻量版 .zip 拖进窗口，可自动更新；SheetSage2 模型和你的设置会保留。</p>
           </section>
 
           <section class="side-section">
@@ -10291,8 +10299,41 @@ return a / b;`,k5=`
     window.addEventListener('drop', (e) => {
       e.preventDefault();
       const f = e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f) handleFile(f);
+      if (!f) return;
+      if (/\.zip$/i.test(f.name)) {
+        void applyUpdateZip(f);
+        return;
+      }
+      handleFile(f);
     });
+
+    async function applyUpdateZip(file) {
+      if (!window.chrome || !window.chrome.webview) {
+        showToast('请使用 Windows 独立窗口版导入更新包', 'error');
+        return;
+      }
+      if (file.size > 500 * 1024 * 1024) {
+        showToast('这是完整版压缩包，太大了；请拖入轻量版更新包', 'error');
+        return;
+      }
+      showToast('正在读取更新包…', 'info');
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        window.chrome.webview.postMessage('updateZipStart|' + file.name);
+        const chunkSize = 256 * 1024;
+        for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+          const slice = bytes.subarray(offset, Math.min(bytes.length, offset + chunkSize));
+          let binary = '';
+          for (let i = 0; i < slice.length; i++) binary += String.fromCharCode(slice[i]);
+          window.chrome.webview.postMessage('updateZipChunk|' + btoa(binary));
+          await new Promise((resolve) => setTimeout(resolve, 1));
+        }
+        window.chrome.webview.postMessage('updateZipEnd');
+        showToast('更新包已接收，软件正在重启…', 'success');
+      } catch (err) {
+        showToast('更新包读取失败：' + err.message, 'error');
+      }
+    }
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('beforeunload', () => {
@@ -14818,6 +14859,8 @@ return a / b;`,k5=`
 </script>
 </body>
 </html>
+
+
 
 
 
