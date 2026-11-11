@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.IO;
 using System.Net;
@@ -248,7 +248,7 @@ namespace MelodyScribe
                     PostInstallStatus("download", 0, "正在下载官方 V2 启动包（87.6 MiB）…");
                     using (var client = new WebClient())
                     {
-                        client.Headers.Add("User-Agent", "MelodyScribe/1.6.1");
+                        client.Headers.Add("User-Agent", "MelodyScribe/1.6.2");
                         client.DownloadProgressChanged += (s, e) =>
                             PostInstallStatus("download", e.ProgressPercentage,
                                 "正在下载 V2 启动包… " + (e.BytesReceived / 1024 / 1024) + " / " +
@@ -313,6 +313,38 @@ namespace MelodyScribe
             });
         }
 
+        private void RepairV2Venv(string root)
+        {
+            try
+            {
+                string cfg = Path.Combine(root, ".venv", "pyvenv.cfg");
+                string runtime = Path.Combine(root, "runtime", "python", "python.exe");
+                if (!File.Exists(cfg) || !File.Exists(runtime)) return;
+                string text = File.ReadAllText(cfg);
+                string expected = Path.Combine(root, "runtime", "python");
+                if (text.IndexOf(expected, StringComparison.OrdinalIgnoreCase) >= 0) return;
+
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = runtime,
+                    Arguments = "-m venv --upgrade \"" + Path.Combine(root, ".venv") + "\"",
+                    WorkingDirectory = root,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using (var process = System.Diagnostics.Process.Start(psi))
+                {
+                    process.WaitForExit(120000);
+                }
+                foreach (string pth in Directory.GetFiles(
+                    Path.Combine(root, ".venv", "Lib", "site-packages"), "__editable__*.pth"))
+                {
+                    File.WriteAllText(pth, Path.Combine(root, "src") + Environment.NewLine);
+                }
+            }
+            catch { }
+        }
+
         private bool StartSheetSage()
         {
             try
@@ -326,6 +358,7 @@ namespace MelodyScribe
                 string args;
                 if (isV2)
                 {
+                    RepairV2Venv(root);
                     bridge = Path.Combine(appDir, "sheetsage_v2_bridge.py");
                     python = Path.Combine(root, ".venv", "Scripts", "python.exe");
                     args = "\"" + bridge + "\" \"" + root + "\" 8000";
@@ -361,7 +394,9 @@ namespace MelodyScribe
         {
             try
             {
-                string baseData = Path.Combine(appDir, "WebView2Data");
+                string baseData = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "MelodyScribe", "WebView2Data");
                 var options = new CoreWebView2EnvironmentOptions(
                     "--autoplay-policy=no-user-gesture-required --disable-features=msEdgeSync --allow-file-access-from-files --ignore-gpu-blocklist");
                 CoreWebView2Environment env = null;
@@ -397,7 +432,7 @@ namespace MelodyScribe
                 core.Settings.AreDevToolsEnabled = false;
                 core.Settings.IsStatusBarEnabled = false;
                 core.Settings.AreDefaultContextMenusEnabled = false;
-                core.Settings.UserAgent = core.Settings.UserAgent + " MelodyScribe/1.6.1";
+                core.Settings.UserAgent = core.Settings.UserAgent + " MelodyScribe/1.6.2";
                 core.SetVirtualHostNameToFolderMapping(
                     "melody.local", appDir, CoreWebView2HostResourceAccessKind.Allow);
 
@@ -417,10 +452,39 @@ namespace MelodyScribe
                         string name = string.IsNullOrEmpty(args.ResultFilePath)
                             ? "MelodyScribe-download"
                             : Path.GetFileName(args.ResultFilePath);
-                        args.ResultFilePath = Path.Combine(downloads, name);
+                        using (var dialog = new SaveFileDialog())
+                        {
+                            dialog.Title = "选择导出位置";
+                            dialog.FileName = name;
+                            dialog.InitialDirectory = downloads;
+                            dialog.OverwritePrompt = true;
+                            dialog.AddExtension = true;
+                            string ext = Path.GetExtension(name).ToLowerInvariant();
+                            if (ext == ".mid" || ext == ".midi")
+                                dialog.Filter = "MIDI 文件 (*.mid)|*.mid|所有文件 (*.*)|*.*";
+                            else if (ext == ".wav")
+                                dialog.Filter = "WAV 音频 (*.wav)|*.wav|所有文件 (*.*)|*.*";
+                            else if (ext == ".json")
+                                dialog.Filter = "JSON 文件 (*.json)|*.json|所有文件 (*.*)|*.*";
+                            else
+                                dialog.Filter = "所有文件 (*.*)|*.*";
+                            if (dialog.ShowDialog(this) == DialogResult.OK)
+                            {
+                                args.ResultFilePath = dialog.FileName;
+                                args.Handled = true;
+                            }
+                            else
+                            {
+                                args.Cancel = true;
+                                args.Handled = true;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        args.Cancel = true;
                         args.Handled = true;
                     }
-                    catch { }
                 };
 
                 core.WebMessageReceived += (s, args) =>
@@ -485,7 +549,7 @@ namespace MelodyScribe
                 };
 
                 web.ZoomFactor = 1.0;
-                core.Navigate("file:///" + appDir.Replace("\\", "/") + "/index.html?v=1.6.1");
+                core.Navigate("file:///" + appDir.Replace("\\", "/") + "/index.html?v=1.6.2");
             }
             catch (Exception ex)
             {
@@ -509,6 +573,7 @@ namespace MelodyScribe
         }
     }
 }
+
 
 
 

@@ -4693,7 +4693,7 @@
       });
       const blob = new Blob([bytes], { type: 'audio/midi' });
       downloadBlob(blob, baseName() + '.mid');
-      showToast('MIDI 已导出 · 可直接拖进 DAW / 打谱软件', 'success');
+      showToast('MIDI 已生成 · 请在另存为窗口选择位置', 'success');
     } catch (err) {
       console.error(err);
       showToast('MIDI 导出失败：' + err.message, 'error');
@@ -4898,7 +4898,7 @@
       const blob = new Blob([decoded.audio], { type: mime });
       hideOverlay();
       downloadBlob(blob, name);
-      showToast('已转换：' + name + ' · 保存到下载文件夹');
+      showToast('已转换：' + name + ' · 请在另存为窗口选择位置');
     } catch (err) {
       hideOverlay();
       console.error(err);

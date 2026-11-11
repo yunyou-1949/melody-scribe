@@ -1943,7 +1943,7 @@ select:focus-visible {
       <div class="brand">
         <div class="brand-mark brand-avatar" aria-hidden="true"><img src="brand-avatar.png" alt="大肥鱼"></div>
         <div class="brand-copy">
-          <h1>旋律抄谱机<span class="fatty-badge">大肥鱼</span><span class="version-badge">v1.6.1</span></h1>
+          <h1>旋律抄谱机<span class="fatty-badge">大肥鱼</span><span class="version-badge">v1.6.2</span></h1>
           <p>大肥鱼 · MELODY SCRIBE · 音频自动抄谱</p>
         </div>
       </div>
@@ -14482,7 +14482,7 @@ return a / b;`,k5=`
       });
       const blob = new Blob([bytes], { type: 'audio/midi' });
       downloadBlob(blob, baseName() + '.mid');
-      showToast('MIDI 已导出 · 可直接拖进 DAW / 打谱软件', 'success');
+      showToast('MIDI 已生成 · 请在另存为窗口选择位置', 'success');
     } catch (err) {
       console.error(err);
       showToast('MIDI 导出失败：' + err.message, 'error');
@@ -14687,7 +14687,7 @@ return a / b;`,k5=`
       const blob = new Blob([decoded.audio], { type: mime });
       hideOverlay();
       downloadBlob(blob, name);
-      showToast('已转换：' + name + ' · 保存到下载文件夹');
+      showToast('已转换：' + name + ' · 请在另存为窗口选择位置');
     } catch (err) {
       hideOverlay();
       console.error(err);
@@ -14818,6 +14818,7 @@ return a / b;`,k5=`
 </script>
 </body>
 </html>
+
 
 
 
