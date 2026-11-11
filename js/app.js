@@ -199,6 +199,7 @@
     engineDownloadBtn: $('#engineDownloadBtn'),
     engineOfflineBtn: $('#engineOfflineBtn'),
     engineGuideCancelBtn: $('#engineGuideCancelBtn'),
+    engineInstallStatus: $('#engineInstallStatus'),
     recordPill: $('#recordPill'),
     recordTime: $('#recordTime'),
     recordStopBtn: $('#recordStopBtn'),
@@ -410,7 +411,9 @@
     });
     els.engineDownloadBtn.addEventListener('click', () => {
       if (window.chrome && window.chrome.webview) {
-        window.chrome.webview.postMessage('openSheetSageRelease');
+        if (!window.confirm('将下载官方 SheetSage2 V2 启动包（约 87.6 MiB），并解压到 D:\\MelodyScribe\\SheetSage2。\n\n首次安装还会下载约 6 GB 环境与模型。继续吗？')) return;
+        if (els.engineInstallStatus) els.engineInstallStatus.textContent = '准备下载官方 V2 启动包…';
+        window.chrome.webview.postMessage('installSheetSageV2');
       } else {
         window.open('https://github.com/3253473591/sheetsage2-webui/releases/tag/v2.0-beta2', '_blank');
       }
@@ -420,6 +423,22 @@
       chooseRecognitionMode('offline');
     });
     els.engineGuideCancelBtn.addEventListener('click', hideEngineGuide);
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.addEventListener('message', (event) => {
+        const data = event.data;
+        if (!data || data.action !== 'sheetSageInstall') return;
+        if (els.engineInstallStatus) {
+          els.engineInstallStatus.textContent = data.message || '';
+          els.engineInstallStatus.style.color = data.stage === 'error' ? '#a33d28' : '#5e4b2c';
+        }
+        if (data.stage === 'ready') {
+          setTimeout(() => {
+            hideEngineGuide();
+            runSheetSage(true);
+          }, 800);
+        }
+      });
+    }
     els.instrumentTopBtn.addEventListener('click', recognizeInstruments);
 
     els.bpmInput.addEventListener('change', onBpmChange);

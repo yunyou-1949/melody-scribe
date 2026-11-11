@@ -1199,6 +1199,16 @@ select:focus-visible {
 .guide-paths strong { font-size: 11px; }
 .guide-paths code { font-family: var(--font-mono); font-size: 10px; }
 
+.install-status {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  color: #6a5838;
+  font-size: 10px;
+  line-height: 1.6;
+  background: rgba(255, 255, 255, 0.18);
+  border-left: 2px solid #a98743;
+}
+
 .mode-btn {
   display: flex;
   flex-direction: column;
@@ -1933,7 +1943,7 @@ select:focus-visible {
       <div class="brand">
         <div class="brand-mark brand-avatar" aria-hidden="true"><img src="brand-avatar.png" alt="大肥鱼"></div>
         <div class="brand-copy">
-          <h1>旋律抄谱机<span class="fatty-badge">大肥鱼</span><span class="version-badge">v1.6.0</span></h1>
+          <h1>旋律抄谱机<span class="fatty-badge">大肥鱼</span><span class="version-badge">v1.6.1</span></h1>
           <p>大肥鱼 · MELODY SCRIBE · 音频自动抄谱</p>
         </div>
       </div>
@@ -2245,10 +2255,11 @@ select:focus-visible {
           <span>选择 SheetSage2 文件夹</span>
         </button>
         <button type="button" class="mode-btn accent" id="engineDownloadBtn">
-          <strong>去下载</strong>
-          <span>打开官方 GitHub Releases</span>
+          <strong>下载并安装</strong>
+          <span>官方 V2 · 自动解压到 D 盘</span>
         </button>
       </div>
+      <div class="install-status" id="engineInstallStatus">下载前会再次确认；首次安装约 6 GB。</div>
       <button type="button" class="mode-cancel" id="engineOfflineBtn">改用离线 BasicPitch</button>
       <button type="button" class="mode-cancel" id="engineGuideCancelBtn">取消</button>
     </div>
@@ -9977,6 +9988,7 @@ return a / b;`,k5=`
     engineDownloadBtn: $('#engineDownloadBtn'),
     engineOfflineBtn: $('#engineOfflineBtn'),
     engineGuideCancelBtn: $('#engineGuideCancelBtn'),
+    engineInstallStatus: $('#engineInstallStatus'),
     recordPill: $('#recordPill'),
     recordTime: $('#recordTime'),
     recordStopBtn: $('#recordStopBtn'),
@@ -10188,7 +10200,9 @@ return a / b;`,k5=`
     });
     els.engineDownloadBtn.addEventListener('click', () => {
       if (window.chrome && window.chrome.webview) {
-        window.chrome.webview.postMessage('openSheetSageRelease');
+        if (!window.confirm('将下载官方 SheetSage2 V2 启动包（约 87.6 MiB），并解压到 D:\\MelodyScribe\\SheetSage2。\n\n首次安装还会下载约 6 GB 环境与模型。继续吗？')) return;
+        if (els.engineInstallStatus) els.engineInstallStatus.textContent = '准备下载官方 V2 启动包…';
+        window.chrome.webview.postMessage('installSheetSageV2');
       } else {
         window.open('https://github.com/3253473591/sheetsage2-webui/releases/tag/v2.0-beta2', '_blank');
       }
@@ -10198,6 +10212,22 @@ return a / b;`,k5=`
       chooseRecognitionMode('offline');
     });
     els.engineGuideCancelBtn.addEventListener('click', hideEngineGuide);
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.addEventListener('message', (event) => {
+        const data = event.data;
+        if (!data || data.action !== 'sheetSageInstall') return;
+        if (els.engineInstallStatus) {
+          els.engineInstallStatus.textContent = data.message || '';
+          els.engineInstallStatus.style.color = data.stage === 'error' ? '#a33d28' : '#5e4b2c';
+        }
+        if (data.stage === 'ready') {
+          setTimeout(() => {
+            hideEngineGuide();
+            runSheetSage(true);
+          }, 800);
+        }
+      });
+    }
     els.instrumentTopBtn.addEventListener('click', recognizeInstruments);
 
     els.bpmInput.addEventListener('change', onBpmChange);
@@ -14788,6 +14818,7 @@ return a / b;`,k5=`
 </script>
 </body>
 </html>
+
 
 
 
